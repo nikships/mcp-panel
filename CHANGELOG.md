@@ -16,6 +16,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Server List View** - New compact list view mode for better density when managing many servers. Toggle between Grid, List, and Raw JSON modes.
 - Server tags (UI, Backend, Creativity, Dev Ops, Advanced) with per-server tagging and bulk enable by tag.
 
+### Fixed
+- **Widget Background** - Fixed widget rendering as a solid gray slab when unfocused. Moved themed background to `containerBackground` modifier so macOS handles focus/unfocus transitions properly instead of desaturating an opaque fill.
+
 ### Changed
 - **Menu Bar Icon** - Proper macOS template icon derived from the app logo. Now displays as a monochrome crystalline silhouette that automatically adapts to light/dark menu bars, matching other native menu bar icons like Teams and Claude.
 - **Header & Toolbar Redesign** - Modern unified navigation with cleaner visual hierarchy. New app logo, prominent config switcher with Claude and Gemini brand icons, expandable search field with keyboard hints, and hover states throughout.

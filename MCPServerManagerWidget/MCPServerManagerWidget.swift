@@ -21,12 +21,12 @@ struct MCPServerManagerWidget: Widget {
             if #available(macOS 14.0, *) {
                 MCPWidgetEntryView(entry: entry)
                     .containerBackground(for: .widget) {
-                        // Use clear so our themed background shows through
-                        Color.clear
+                        WidgetThemeColors.forTheme(entry.themeName).background
                     }
             } else {
                 MCPWidgetEntryView(entry: entry)
                     .padding()
+                    .background(WidgetThemeColors.forTheme(entry.themeName).background)
             }
         }
         .configurationDisplayName("MCP Servers")
