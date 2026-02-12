@@ -61,7 +61,15 @@ class ConfigManager {
         }
     }
 
+    func syncClaudeServersToDroid(_ servers: [String: ServerConfig], to path: String) throws {
+        let droidServers = servers.mapValues { normalizeForDroid($0) }
+        try writeConfig(servers: droidServers, to: path)
+    }
+
     private func writeJSONConfig(servers: [String: ServerConfig], to url: URL) throws {
+        let parentDirectory = url.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: parentDirectory, withIntermediateDirectories: true)
+
         var json = readExistingJSON(at: url)
 
         let mcpServers = try servers.mapValues { config -> [String: Any] in
@@ -73,6 +81,40 @@ class ConfigManager {
 
         let outputData = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys])
         try outputData.write(to: url)
+    }
+
+    private func normalizeForDroid(_ config: ServerConfig) -> ServerConfig {
+        var normalized = config
+
+        if let command = normalized.command, !command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if normalized.type?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+                normalized.type = "stdio"
+            }
+            return normalized
+        }
+
+        if let httpUrl = normalized.httpUrl, !httpUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if normalized.type?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+                normalized.type = "http"
+            }
+            if normalized.url?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+                normalized.url = httpUrl
+            }
+        }
+
+        if let transport = normalized.transport {
+            if normalized.type?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+                normalized.type = transport.type
+            }
+            if normalized.url?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+                normalized.url = transport.url
+            }
+            if normalized.headers == nil {
+                normalized.headers = transport.headers
+            }
+        }
+
+        return normalized
     }
 
     private func readExistingJSON(at url: URL) -> [String: Any] {

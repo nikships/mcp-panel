@@ -226,6 +226,15 @@ class ServerViewModel: ObservableObject {
                 try configManager.writeConfig(servers: config1Servers, to: settings.config1Path)
                 try configManager.writeConfig(servers: config2Servers, to: settings.config2Path)
 
+                if let droidPath = settings.droidConfigPath?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !droidPath.isEmpty {
+                    do {
+                        try configManager.syncClaudeServersToDroid(config1Servers, to: droidPath)
+                    } catch {
+                        NSLog("Failed to sync Droid MCP config: %@", error.localizedDescription)
+                    }
+                }
+
                 // Update cache
                 await MainActor.run {
                     UserDefaults.standard.cachedServers = servers
@@ -528,6 +537,11 @@ class ServerViewModel: ObservableObject {
 
         var updated = servers[index]
         let configIndex = settings.activeConfigIndex
+
+        while updated.inConfigs.count <= configIndex {
+            updated.inConfigs.append(false)
+        }
+
         updated.inConfigs[configIndex].toggle()
         updated.updatedAt = Date()
         servers[index] = updated

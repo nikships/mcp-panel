@@ -54,7 +54,12 @@ struct ServerModel: Identifiable, Codable, Equatable {
         config = try container.decode(ServerConfig.self, forKey: .config)
         enabled = try container.decode(Bool.self, forKey: .enabled)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
-        inConfigs = try container.decode([Bool].self, forKey: .inConfigs)
+        let decodedInConfigs = try container.decode([Bool].self, forKey: .inConfigs)
+        var normalizedInConfigs = Array(decodedInConfigs.prefix(2))
+        while normalizedInConfigs.count < 2 {
+            normalizedInConfigs.append(false)
+        }
+        inConfigs = normalizedInConfigs
         registryImageUrl = try container.decodeIfPresent(String.self, forKey: .registryImageUrl)
         customIconPath = try container.decodeIfPresent(String.self, forKey: .customIconPath)
         tags = try container.decodeIfPresent([ServerTag].self, forKey: .tags) ?? []

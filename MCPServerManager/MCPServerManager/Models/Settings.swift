@@ -3,6 +3,7 @@ import Foundation
 struct AppSettings: Codable, Equatable {
     var confirmDelete: Bool
     var configPaths: [String]
+    var droidConfigPath: String?
     var activeConfigIndex: Int
     var blurJSONPreviews: Bool
     var overrideTheme: String? // nil = auto-detect, otherwise use the theme name
@@ -18,6 +19,7 @@ struct AppSettings: Codable, Equatable {
             "~/.claude.json",
             "~/.settings.json"
         ],
+        droidConfigPath: nil,
         activeConfigIndex: 0,
         blurJSONPreviews: false,
         overrideTheme: nil,
@@ -28,6 +30,7 @@ struct AppSettings: Codable, Equatable {
 
     init(confirmDelete: Bool = true,
          configPaths: [String] = ["~/.claude.json", "~/.settings.json"],
+         droidConfigPath: String? = nil,
          activeConfigIndex: Int = 0,
          blurJSONPreviews: Bool = false,
          overrideTheme: String? = nil,
@@ -36,6 +39,7 @@ struct AppSettings: Codable, Equatable {
          launchAtLogin: Bool = false) {
         self.confirmDelete = confirmDelete
         self.configPaths = configPaths
+        self.droidConfigPath = droidConfigPath
         self.activeConfigIndex = max(0, min(activeConfigIndex, 1)) // Ensure 0 or 1
         self.blurJSONPreviews = blurJSONPreviews
         self.overrideTheme = overrideTheme
@@ -46,7 +50,7 @@ struct AppSettings: Codable, Equatable {
 
     // Custom Codable for backward compatibility with old settings
     enum CodingKeys: String, CodingKey {
-        case confirmDelete, configPaths, activeConfigIndex, blurJSONPreviews, overrideTheme
+        case confirmDelete, configPaths, droidConfigPath, activeConfigIndex, blurJSONPreviews, overrideTheme
         case menuBarModeEnabled, hideDockIconInMenuBarMode, launchAtLogin
     }
 
@@ -54,7 +58,9 @@ struct AppSettings: Codable, Equatable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         confirmDelete = try container.decode(Bool.self, forKey: .confirmDelete)
         configPaths = try container.decode([String].self, forKey: .configPaths)
-        activeConfigIndex = try container.decode(Int.self, forKey: .activeConfigIndex)
+        droidConfigPath = try container.decodeIfPresent(String.self, forKey: .droidConfigPath)
+        let decodedIndex = try container.decode(Int.self, forKey: .activeConfigIndex)
+        activeConfigIndex = max(0, min(decodedIndex, 1))
         blurJSONPreviews = try container.decode(Bool.self, forKey: .blurJSONPreviews)
         overrideTheme = try container.decodeIfPresent(String.self, forKey: .overrideTheme)
         // New settings with defaults for backward compatibility

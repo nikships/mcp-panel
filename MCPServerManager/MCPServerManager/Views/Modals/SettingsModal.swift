@@ -40,6 +40,7 @@ struct SettingsModal: View {
     @State private var selectedTab: SettingsTab = .general
     @State private var config1Path: String = ""
     @State private var config2Path: String = ""
+    @State private var droidConfigPath: String = ""
     @State private var confirmDelete: Bool = true
     @State private var fetchServerLogos: Bool = true
     @State private var blurJSONPreviews: Bool = false
@@ -208,6 +209,26 @@ struct SettingsModal: View {
                         path: $config2Path,
                         onBrowse: { selectConfigFile { config2Path = $0 } }
                     )
+
+                    Divider().opacity(0.3)
+
+                    ConfigPathEditor(
+                        label: "Droid (Optional)",
+                        icon: "3.circle.fill",
+                        placeholder: "~/.factory/mcp.json",
+                        path: $droidConfigPath,
+                        onBrowse: { selectConfigFile { droidConfigPath = $0 } }
+                    )
+
+                    HStack(spacing: 8) {
+                        Image(systemName: "info.circle")
+                            .font(.system(size: 11))
+                            .foregroundColor(themeColors.mutedText)
+                        Text("Leave Droid path empty to keep Droid sync disabled.")
+                            .font(DesignTokens.Typography.caption)
+                            .foregroundColor(themeColors.mutedText)
+                        Spacer()
+                    }
                 }
             }
 
@@ -436,6 +457,7 @@ struct SettingsModal: View {
     private func loadSettings() {
         config1Path = viewModel.settings.config1Path
         config2Path = viewModel.settings.config2Path
+        droidConfigPath = viewModel.settings.droidConfigPath ?? ""
         confirmDelete = viewModel.settings.confirmDelete
         fetchServerLogos = UserDefaults.standard.object(forKey: "fetchServerLogos") as? Bool ?? true
         blurJSONPreviews = viewModel.settings.blurJSONPreviews
@@ -508,6 +530,7 @@ struct SettingsModal: View {
     private func resetToDefaults() {
         config1Path = "~/.claude.json"
         config2Path = "~/.settings.json"
+        droidConfigPath = ""
         confirmDelete = true
         fetchServerLogos = true
         blurJSONPreviews = false
@@ -517,6 +540,8 @@ struct SettingsModal: View {
 
     private func saveSettings() {
         viewModel.settings.configPaths = [config1Path, config2Path]
+        let trimmedDroidPath = droidConfigPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        viewModel.settings.droidConfigPath = trimmedDroidPath.isEmpty ? nil : trimmedDroidPath
         viewModel.settings.confirmDelete = confirmDelete
         viewModel.settings.blurJSONPreviews = blurJSONPreviews
         UserDefaults.standard.set(fetchServerLogos, forKey: "fetchServerLogos")

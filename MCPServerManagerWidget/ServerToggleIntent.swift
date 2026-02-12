@@ -115,14 +115,40 @@ struct ServerToggleIntent: AppIntent {
         guard let bookmarkData = defaults.data(forKey: key) else { return nil }
 
         var isStale = false
-        let url = try? URL(
-            resolvingBookmarkData: bookmarkData,
-            options: .withSecurityScope,
-            relativeTo: nil,
-            bookmarkDataIsStale: &isStale
-        )
+        do {
+            let url = try URL(
+                resolvingBookmarkData: bookmarkData,
+                options: .withSecurityScope,
+                relativeTo: nil,
+                bookmarkDataIsStale: &isStale
+            )
 
-        return url
+            if isStale {
+                let accessing = url.startAccessingSecurityScopedResource()
+                defer {
+                    if accessing {
+                        url.stopAccessingSecurityScopedResource()
+                    }
+                }
+
+                if accessing {
+                    if let refreshedData = try? url.bookmarkData(
+                        options: .withSecurityScope,
+                        includingResourceValuesForKeys: nil,
+                        relativeTo: nil
+                    ) {
+                        defaults.set(refreshedData, forKey: key)
+                        defaults.synchronize()
+                    }
+                }
+            }
+
+            return url
+        } catch {
+            defaults.removeObject(forKey: key)
+            defaults.synchronize()
+            return nil
+        }
     }
 
     // MARK: - Widget Display State

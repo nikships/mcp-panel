@@ -20,6 +20,30 @@ class BookmarkManager {
         }
     }
 
+    private enum BookmarkStore {
+        case shared
+        case standard
+    }
+
+    private func bookmarkData(forKey key: String, from store: BookmarkStore) -> Data? {
+        switch store {
+        case .shared:
+            return sharedDefaults?.data(forKey: key)
+        case .standard:
+            return UserDefaults.standard.data(forKey: key)
+        }
+    }
+
+    private func removeBookmarkData(forKey key: String, from store: BookmarkStore) {
+        switch store {
+        case .shared:
+            sharedDefaults?.removeObject(forKey: key)
+            sharedDefaults?.synchronize()
+        case .standard:
+            UserDefaults.standard.removeObject(forKey: key)
+        }
+    }
+
     // MARK: - Bookmark Operations
 
     /// Stores a security-scoped bookmark for the given URL
@@ -46,67 +70,60 @@ class BookmarkManager {
         let expandedPath = NSString(string: path).expandingTildeInPath
         let key = Keys.bookmarkKey(for: expandedPath)
 
-        // Check shared defaults first (for widget access), then fall back to standard defaults
-        var bookmarkData = sharedDefaults?.data(forKey: key)
-        if bookmarkData == nil {
-            bookmarkData = UserDefaults.standard.data(forKey: key)
-            // Migrate to shared defaults if found in standard
-            if let data = bookmarkData {
-                sharedDefaults?.set(data, forKey: key)
-                sharedDefaults?.synchronize()
+        for store in [BookmarkStore.shared, BookmarkStore.standard] {
+            guard let bookmarkData = bookmarkData(forKey: key, from: store) else {
+                continue
             }
-        }
 
-        guard let bookmarkData = bookmarkData else {
-            print("⚠️ No bookmark found for: \(path)")
-            return nil
-        }
+            var isStale = false
+            do {
+                let url = try URL(
+                    resolvingBookmarkData: bookmarkData,
+                    options: .withSecurityScope,
+                    relativeTo: nil,
+                    bookmarkDataIsStale: &isStale
+                )
 
-        var isStale = false
-        do {
-            let url = try URL(
-                resolvingBookmarkData: bookmarkData,
-                options: .withSecurityScope,
-                relativeTo: nil,
-                bookmarkDataIsStale: &isStale
-            )
-
-            if isStale {
-                print("⚠️ Bookmark is stale for: \(path), attempting to refresh...")
-                // Try to refresh the bookmark - but don't delete if refresh fails
-                // The stale bookmark may still work for reading
-                do {
-                    // Need security-scoped access to create new bookmark
-                    let accessing = url.startAccessingSecurityScopedResource()
-                    defer {
-                        if accessing {
-                            url.stopAccessingSecurityScopedResource()
+                if isStale {
+                    print("⚠️ Bookmark is stale for: \(path), attempting to refresh...")
+                    do {
+                        let accessing = url.startAccessingSecurityScopedResource()
+                        defer {
+                            if accessing {
+                                url.stopAccessingSecurityScopedResource()
+                            }
                         }
+                        try storeBookmark(for: url)
+                        print("✅ Refreshed stale bookmark for: \(path)")
+                    } catch {
+                        print("⚠️ Could not refresh bookmark for: \(path) - will retry on next file selection")
                     }
-                    try storeBookmark(for: url)
-                    print("✅ Refreshed stale bookmark for: \(path)")
-                } catch {
-                    // Don't delete - stale bookmarks often still work for reading
-                    print("⚠️ Could not refresh bookmark for: \(path) - will retry on next file selection")
                 }
+
+                // If we resolved from standard defaults, migrate to shared defaults.
+                if store == .standard {
+                    sharedDefaults?.set(bookmarkData, forKey: key)
+                    sharedDefaults?.synchronize()
+                }
+
+                print("✅ Resolved bookmark for: \(path)")
+                return url
+            } catch {
+                print("❌ Failed to resolve bookmark for: \(path) - \(error.localizedDescription)")
+                removeBookmarkData(forKey: key, from: store)
             }
-
-            print("✅ Resolved bookmark for: \(path)")
-            return url
-
-        } catch {
-            print("❌ Failed to resolve bookmark for: \(path) - \(error.localizedDescription)")
-            // Clear invalid bookmark
-            UserDefaults.standard.removeObject(forKey: key)
-            return nil
         }
+
+        print("⚠️ No bookmark found for: \(path)")
+        return nil
     }
 
     /// Removes a stored bookmark for the given path
     func removeBookmark(for path: String) {
         let expandedPath = NSString(string: path).expandingTildeInPath
         let key = Keys.bookmarkKey(for: expandedPath)
-        UserDefaults.standard.removeObject(forKey: key)
+        removeBookmarkData(forKey: key, from: .standard)
+        removeBookmarkData(forKey: key, from: .shared)
         print("🗑️ Removed bookmark for: \(path)")
     }
 
@@ -114,16 +131,24 @@ class BookmarkManager {
     func hasBookmark(for path: String) -> Bool {
         let expandedPath = NSString(string: path).expandingTildeInPath
         let key = Keys.bookmarkKey(for: expandedPath)
-        return UserDefaults.standard.data(forKey: key) != nil
+        return UserDefaults.standard.data(forKey: key) != nil || sharedDefaults?.data(forKey: key) != nil
     }
 
     /// Clears all stored bookmarks
     func clearAllBookmarks() {
-        let defaults = UserDefaults.standard
-        let allKeys = defaults.dictionaryRepresentation().keys
+        let standardDefaults = UserDefaults.standard
+        let standardKeys = standardDefaults.dictionaryRepresentation().keys
 
-        for key in allKeys where key.hasPrefix("bookmark_") {
-            defaults.removeObject(forKey: key)
+        for key in standardKeys where key.hasPrefix("bookmark_") {
+            standardDefaults.removeObject(forKey: key)
+        }
+
+        if let sharedDefaults {
+            let sharedKeys = sharedDefaults.dictionaryRepresentation().keys
+            for key in sharedKeys where key.hasPrefix("bookmark_") {
+                sharedDefaults.removeObject(forKey: key)
+            }
+            sharedDefaults.synchronize()
         }
 
         print("🗑️ Cleared all bookmarks")
