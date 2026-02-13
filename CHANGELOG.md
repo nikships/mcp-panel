@@ -18,6 +18,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Fixed
 - **Widget Background** - Fixed widget rendering as a solid gray slab when unfocused. Moved themed background to `containerBackground` modifier so macOS handles focus/unfocus transitions properly instead of desaturating an opaque fill.
+- **Widget Icon** - Fixed app icon in widget turning into a gray box when unfocused by using `.renderingMode(.original)` to preserve colors.
+- **Widget Config Switcher** - Added Claude/Gemini toggle button to widget header (macOS 14+). Tap to switch between configs and see each config's servers with their independent enabled states. Previously the widget was locked to whichever config was last active in the main app.
 
 ### Changed
 - **Menu Bar Icon** - Proper macOS template icon derived from the app logo. Now displays as a monochrome crystalline silhouette that automatically adapts to light/dark menu bars, matching other native menu bar icons like Teams and Claude.

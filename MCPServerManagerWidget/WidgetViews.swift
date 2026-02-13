@@ -203,6 +203,7 @@ struct SmallWidgetView: View {
     private var headerView: some View {
         HStack {
             Image("WidgetAppIcon")
+                .renderingMode(.original)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 14, height: 14)
@@ -218,15 +219,14 @@ struct SmallWidgetView: View {
 
             Spacer()
 
-            Text(entry.configName)
-                .font(.system(size: 10, weight: .medium))
-                .foregroundColor(themeColors.mutedText)
+            WidgetConfigSwitch(entry: entry, themeColors: themeColors, fontSize: 10)
         }
     }
 
     private var emptyStateView: some View {
         VStack(spacing: 4) {
             Image("WidgetAppIcon")
+                .renderingMode(.original)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 24, height: 24)
@@ -277,6 +277,7 @@ struct MediumWidgetView: View {
     private var headerView: some View {
         HStack {
             Image("WidgetAppIcon")
+                .renderingMode(.original)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 16, height: 16)
@@ -292,15 +293,14 @@ struct MediumWidgetView: View {
 
             Spacer()
 
-            Text(entry.configName)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(themeColors.mutedText)
+            WidgetConfigSwitch(entry: entry, themeColors: themeColors, fontSize: 11)
         }
     }
 
     private var emptyStateView: some View {
         VStack(spacing: 8) {
             Image("WidgetAppIcon")
+                .renderingMode(.original)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 28, height: 28)
@@ -355,6 +355,7 @@ struct LargeWidgetView: View {
     private var headerView: some View {
         HStack {
             Image("WidgetAppIcon")
+                .renderingMode(.original)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 20, height: 20)
@@ -370,15 +371,14 @@ struct LargeWidgetView: View {
 
             Spacer()
 
-            Text(entry.configName)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(themeColors.mutedText)
+            WidgetConfigSwitch(entry: entry, themeColors: themeColors, fontSize: 12)
         }
     }
 
     private var emptyStateView: some View {
         VStack(spacing: 12) {
             Image("WidgetAppIcon")
+                .renderingMode(.original)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 40, height: 40)
@@ -394,6 +394,43 @@ struct LargeWidgetView: View {
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+// MARK: - Config Switch Button
+
+struct WidgetConfigSwitch: View {
+    let entry: ServerEntry
+    let themeColors: WidgetThemeColors
+    let fontSize: CGFloat
+
+    var body: some View {
+        if #available(macOS 14.0, *) {
+            Button(intent: ConfigSwitchIntent()) {
+                configLabel
+            }
+            .buttonStyle(.plain)
+        } else {
+            configLabel
+        }
+    }
+
+    private var configLabel: some View {
+        HStack(spacing: 3) {
+            Text(entry.configName)
+                .font(.system(size: fontSize, weight: .medium))
+                .foregroundColor(themeColors.text)
+
+            Image(systemName: "arrow.left.arrow.right")
+                .font(.system(size: fontSize - 2))
+                .foregroundColor(themeColors.mutedText)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(themeColors.primaryAccent.opacity(0.15))
+        )
     }
 }
 
@@ -456,14 +493,14 @@ struct WidgetServerRow: View {
 struct MCPWidgetEntryView_Previews: PreviewProvider {
     static var previews: some View {
         let sampleServers = [
-            WidgetServerModel(id: UUID(), name: "filesystem", isEnabled: true),
-            WidgetServerModel(id: UUID(), name: "github", isEnabled: true),
-            WidgetServerModel(id: UUID(), name: "slack", isEnabled: false),
-            WidgetServerModel(id: UUID(), name: "notion", isEnabled: true)
+            WidgetServerModel(id: UUID(), name: "filesystem", isEnabled: true, inConfigs: [true, true]),
+            WidgetServerModel(id: UUID(), name: "github", isEnabled: true, inConfigs: [true, false]),
+            WidgetServerModel(id: UUID(), name: "slack", isEnabled: false, inConfigs: [true, true]),
+            WidgetServerModel(id: UUID(), name: "notion", isEnabled: true, inConfigs: [false, true])
         ]
 
-        let claudeEntry = ServerEntry(date: Date(), servers: sampleServers, configName: "Claude", themeName: "Claude Code")
-        let geminiEntry = ServerEntry(date: Date(), servers: sampleServers, configName: "Gemini", themeName: "Gemini CLI")
+        let claudeEntry = ServerEntry(date: Date(), servers: sampleServers, configName: "Claude", themeName: "Claude Code", activeConfigIndex: 0)
+        let geminiEntry = ServerEntry(date: Date(), servers: sampleServers, configName: "Gemini", themeName: "Gemini CLI", activeConfigIndex: 1)
 
         Group {
             MCPWidgetEntryView(entry: claudeEntry)

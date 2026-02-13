@@ -41,6 +41,7 @@ struct ServerEntry: TimelineEntry {
     let servers: [WidgetServerModel]
     let configName: String
     let themeName: String
+    let activeConfigIndex: Int
 }
 
 /// Simplified server model for widget display
@@ -48,5 +49,6 @@ struct WidgetServerModel: Identifiable {
     let id: UUID
     let name: String
     var isEnabled: Bool
+    var inConfigs: [Bool]
 }
 

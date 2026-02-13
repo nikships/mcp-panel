@@ -62,6 +62,21 @@ class SharedDataManager {
         return (config1, config2, activeIndex)
     }
 
+    private let widgetActiveConfigKey = "widgetActiveConfigIndex"
+
+    // MARK: - Widget Active Config
+
+    func saveWidgetActiveConfig(_ index: Int) {
+        guard let defaults = sharedDefaults else { return }
+        defaults.set(index, forKey: widgetActiveConfigKey)
+        defaults.synchronize()
+        reloadWidgetTimeline()
+    }
+
+    func loadWidgetActiveConfig() -> Int {
+        sharedDefaults?.integer(forKey: widgetActiveConfigKey) ?? 0
+    }
+
     // MARK: - Widget Server Model
 
     /// Lightweight server model for widget display
@@ -70,9 +85,29 @@ class SharedDataManager {
         let name: String
         var isEnabled: Bool
         let configIndex: Int // 0 = Claude, 1 = Gemini
+        var inConfigs: [Bool] // [inClaude, inGemini] - whether server exists in each config
 
         var configName: String {
             configIndex == 0 ? "Claude" : "Gemini"
+        }
+
+        init(id: UUID, name: String, isEnabled: Bool, configIndex: Int, inConfigs: [Bool] = [false, false]) {
+            self.id = id
+            self.name = name
+            self.isEnabled = isEnabled
+            self.configIndex = configIndex
+            self.inConfigs = inConfigs
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            id = try container.decode(UUID.self, forKey: .id)
+            name = try container.decode(String.self, forKey: .name)
+            isEnabled = try container.decode(Bool.self, forKey: .isEnabled)
+            configIndex = try container.decode(Int.self, forKey: .configIndex)
+            var decoded = try container.decodeIfPresent([Bool].self, forKey: .inConfigs) ?? [false, false]
+            while decoded.count < 2 { decoded.append(false) }
+            inConfigs = Array(decoded.prefix(2))
         }
     }
 

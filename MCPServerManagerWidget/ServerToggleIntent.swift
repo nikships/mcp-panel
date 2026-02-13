@@ -48,18 +48,18 @@ struct ServerToggleIntent: AppIntent {
 
     private func toggleServerInConfigs(serverID: UUID, newState: Bool) {
         guard let defaults = UserDefaults(suiteName: suiteName),
-              let config1Path = defaults.string(forKey: "config1Path"),
-              let config2Path = defaults.string(forKey: "config2Path"),
+              let config1Path = defaults.string(forKey: WidgetConstants.config1PathKey),
+              let config2Path = defaults.string(forKey: WidgetConstants.config2PathKey),
               let widgetData = defaults.data(forKey: widgetServersKey),
               let widgetServers = try? JSONDecoder().decode([SharedWidgetServerForIntent].self, from: widgetData),
               let widgetServer = widgetServers.first(where: { $0.id == serverID }) else {
             return
         }
 
-        // Determine which config to update based on server's configIndex
-        let configPath = widgetServer.configIndex == 0 ? config1Path : config2Path
+        // Use widget's active config to determine which config file to update
+        let activeConfig = defaults.integer(forKey: WidgetConstants.widgetActiveConfigKey)
+        let configPath = activeConfig == 0 ? config1Path : config2Path
 
-        // Toggle in the appropriate config
         toggleInConfig(serverID: serverID, serverName: widgetServer.name, newState: newState, configPath: configPath)
     }
 
@@ -153,8 +153,8 @@ struct ServerToggleIntent: AppIntent {
 
     // MARK: - Widget Display State
 
-    private let suiteName = "group.com.anand-92.mcp-panel"
-    private let widgetServersKey = "widgetServers"
+    private let suiteName = WidgetConstants.suiteName
+    private let widgetServersKey = WidgetConstants.widgetServersKey
 
     private func updateServerState(serverID: UUID, newState: Bool) {
         guard let defaults = UserDefaults(suiteName: suiteName),
@@ -200,6 +200,27 @@ struct ServerToggleIntent: AppIntent {
     }
 }
 
+/// App Intent for switching between Claude and Gemini configs in the widget
+@available(macOS 14.0, *)
+struct ConfigSwitchIntent: AppIntent {
+    static var title: LocalizedStringResource = "Switch Config"
+    static var description: IntentDescription = IntentDescription("Switch between Claude and Gemini")
+
+    func perform() async throws -> some IntentResult {
+        guard let defaults = UserDefaults(suiteName: WidgetConstants.suiteName) else {
+            return .result()
+        }
+
+        let current = defaults.integer(forKey: WidgetConstants.widgetActiveConfigKey)
+        let newIndex = 1 - current
+        defaults.set(newIndex, forKey: WidgetConstants.widgetActiveConfigKey)
+        defaults.synchronize()
+
+        WidgetCenter.shared.reloadAllTimelines()
+        return .result()
+    }
+}
+
 /// Shared widget server model for intent (must match SharedDataManager.WidgetServer)
 @available(macOS 14.0, *)
 private struct SharedWidgetServerForIntent: Codable, Identifiable {
@@ -207,4 +228,16 @@ private struct SharedWidgetServerForIntent: Codable, Identifiable {
     let name: String
     var isEnabled: Bool
     let configIndex: Int
+    var inConfigs: [Bool]
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        isEnabled = try container.decode(Bool.self, forKey: .isEnabled)
+        configIndex = try container.decode(Int.self, forKey: .configIndex)
+        var decoded = try container.decodeIfPresent([Bool].self, forKey: .inConfigs) ?? [false, false]
+        while decoded.count < 2 { decoded.append(false) }
+        inConfigs = Array(decoded.prefix(2))
+    }
 }

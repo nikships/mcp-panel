@@ -638,7 +638,8 @@ class ServerViewModel: ObservableObject {
                     id: server.id,
                     name: server.name,
                     isEnabled: server.inConfigs[safe: settings.activeConfigIndex] ?? false,
-                    configIndex: settings.activeConfigIndex
+                    configIndex: settings.activeConfigIndex,
+                    inConfigs: server.inConfigs
                 )
             }
 

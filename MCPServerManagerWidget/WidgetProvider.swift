@@ -6,19 +6,21 @@ struct WidgetProvider: TimelineProvider {
     typealias Entry = ServerEntry
 
     /// App Group identifier for accessing shared data
-    private let suiteName = "group.com.anand-92.mcp-panel"
-    private let widgetServersKey = "widgetServers"
-    private let currentThemeKey = "currentTheme"
+    private let suiteName = WidgetConstants.suiteName
+    private let widgetServersKey = WidgetConstants.widgetServersKey
+    private let currentThemeKey = WidgetConstants.currentThemeKey
+    private let widgetActiveConfigKey = WidgetConstants.widgetActiveConfigKey
 
     func placeholder(in context: Context) -> ServerEntry {
         ServerEntry(
             date: Date(),
             servers: [
-                WidgetServerModel(id: UUID(), name: "example-server", isEnabled: true),
-                WidgetServerModel(id: UUID(), name: "another-server", isEnabled: false)
+                WidgetServerModel(id: UUID(), name: "example-server", isEnabled: true, inConfigs: [true, false]),
+                WidgetServerModel(id: UUID(), name: "another-server", isEnabled: false, inConfigs: [true, true])
             ],
             configName: "Claude",
-            themeName: "claudeCode"
+            themeName: "claudeCode",
+            activeConfigIndex: 0
         )
     }
 
@@ -30,23 +32,40 @@ struct WidgetProvider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<ServerEntry>) -> Void) {
         let entry = createEntry()
 
-        // Refresh every 15 minutes or when data changes
         let nextUpdate = Calendar.current.date(byAdding: .minute, value: 15, to: Date()) ?? Date()
         let timeline = Timeline(entries: [entry], policy: .after(nextUpdate))
         completion(timeline)
     }
 
     private func createEntry() -> ServerEntry {
-        let servers = loadWidgetServers()
-        let configName = servers.first.map { $0.configIndex == 0 ? "Claude" : "Gemini" } ?? "Claude"
+        let allServers = loadWidgetServers()
+        let activeConfig = loadActiveConfig()
+        let configName = activeConfig == 0 ? "Claude" : "Gemini"
         let themeName = loadTheme()
+
+        let filteredServers = allServers
+            .filter { $0.inConfigs.count > activeConfig && $0.inConfigs[activeConfig] }
+            .map { server in
+                WidgetServerModel(
+                    id: server.id,
+                    name: server.name,
+                    isEnabled: server.isEnabled,
+                    inConfigs: server.inConfigs
+                )
+            }
 
         return ServerEntry(
             date: Date(),
-            servers: servers.map { WidgetServerModel(id: $0.id, name: $0.name, isEnabled: $0.isEnabled) },
+            servers: filteredServers,
             configName: configName,
-            themeName: themeName
+            themeName: themeName,
+            activeConfigIndex: activeConfig
         )
+    }
+
+    private func loadActiveConfig() -> Int {
+        guard let defaults = UserDefaults(suiteName: suiteName) else { return 0 }
+        return defaults.integer(forKey: widgetActiveConfigKey)
     }
 
     private func loadTheme() -> String {
@@ -76,5 +95,17 @@ struct SharedWidgetServer: Codable, Identifiable {
     let name: String
     var isEnabled: Bool
     let configIndex: Int
+    var inConfigs: [Bool]
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        isEnabled = try container.decode(Bool.self, forKey: .isEnabled)
+        configIndex = try container.decode(Int.self, forKey: .configIndex)
+        var decoded = try container.decodeIfPresent([Bool].self, forKey: .inConfigs) ?? [false, false]
+        while decoded.count < 2 { decoded.append(false) }
+        inConfigs = Array(decoded.prefix(2))
+    }
 }
 
