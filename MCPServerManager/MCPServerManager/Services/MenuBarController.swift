@@ -287,22 +287,11 @@ class MenuBarController: NSObject {
     private func openMainApp() {
         closePanel()
 
-        // Temporarily change activation policy to .regular so window can become key
-        NSApp.setActivationPolicy(.regular)
-
-        // Activate the app and bring window to front
-        NSApp.activate(ignoringOtherApps: true)
-
-        // Find and show the main window (excluding menu bar windows)
-        if let window = NSApp.windows.first(where: { window in
-            // Skip status bar windows and panel windows
-            return window.className != "NSStatusBarWindow" &&
-                   !(window is MenuBarPanel)
-        }) {
-            window.makeKeyAndOrderFront(nil)
-            window.orderFrontRegardless()
+        if let appDelegate = NSApp.delegate as? AppDelegate {
+            appDelegate.showMainWindow()
         } else {
-            // Fallback: just use the first available window
+            NSApp.setActivationPolicy(.regular)
+            NSApp.activate(ignoringOtherApps: true)
             NSApp.windows.first?.makeKeyAndOrderFront(nil)
         }
 

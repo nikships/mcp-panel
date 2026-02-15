@@ -12,6 +12,7 @@ struct MCPServerManagerApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(appDelegate)
                 .preferredColorScheme(.dark)
                 .onAppear {
                     // Ensure window accepts keyboard input
@@ -49,13 +50,7 @@ struct MCPServerManagerApp: App {
             // Window menu to reopen the main window (Apple Review requirement)
             CommandGroup(after: .windowArrangement) {
                 Button("MCP Server Manager") {
-                    // Bring existing window to front or create new one
-                    if let window = NSApp.windows.first(where: { $0.title.isEmpty || $0.title == "MCP Server Manager" }) {
-                        window.makeKeyAndOrderFront(nil)
-                    } else {
-                        // If no window exists, create one by activating the app
-                        NSApp.activate(ignoringOtherApps: true)
-                    }
+                    appDelegate.showMainWindow()
                 }
                 .keyboardShortcut("0", modifiers: [.command])
             }
@@ -66,6 +61,7 @@ struct MCPServerManagerApp: App {
 class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     var menuBarController: MenuBarController?
     private var widgetNotificationObserver: Any?
+    private var mainWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Register custom fonts (Poppins & Crimson Pro)
@@ -93,12 +89,53 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         }
     }
 
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag {
+            showMainWindow()
+        }
+        return true
+    }
+
     // Keep app alive when window closed - always keep running for menu bar
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return false // Never quit when window closes - we're a menu bar app now
     }
 
     // MARK: - Menu Bar Setup
+
+    @MainActor
+    func showMainWindow() {
+        // Accessory apps need regular activation policy to present a normal window
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+
+        if let existingWindow = mainWindow ?? NSApp.windows.first(where: { window in
+                window.className != "NSStatusBarWindow" && !(window is MenuBarPanel)
+            }) {
+            existingWindow.makeKeyAndOrderFront(nil)
+            existingWindow.orderFrontRegardless()
+            mainWindow = existingWindow
+            return
+        }
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 1440, height: 900),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.isReleasedWhenClosed = false
+        window.center()
+        window.contentView = NSHostingView(
+            rootView: ContentView()
+                .environmentObject(self)
+                .preferredColorScheme(.dark)
+        )
+        window.makeKeyAndOrderFront(nil)
+        mainWindow = window
+    }
 
     /// Setup menu bar with view model (called from ContentView) - ALWAYS ENABLED NOW
     @MainActor
