@@ -42,6 +42,12 @@ struct ContentView: View {
         .onAppear {
             // Setup menu bar with view model (this ensures view model is available)
             print("ContentView appeared - setting up menu bar with view model")
+
+            if let window = NSApp.windows.first(where: { candidate in
+                candidate.className != "NSStatusBarWindow" && !(candidate is MenuBarPanel)
+            }) {
+                appDelegate.registerMainWindow(window)
+            }
             
             // Use the environment object directly
             print("✅ Using AppDelegate environment object, calling setupMenuBar...")

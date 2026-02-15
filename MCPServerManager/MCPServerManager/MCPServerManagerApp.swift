@@ -58,7 +58,7 @@ struct MCPServerManagerApp: App {
     }
 }
 
-class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
+class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject, NSWindowDelegate {
     var menuBarController: MenuBarController?
     private var widgetNotificationObserver: Any?
     private var mainWindow: NSWindow?
@@ -115,26 +115,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             existingWindow.makeKeyAndOrderFront(nil)
             existingWindow.orderFrontRegardless()
             mainWindow = existingWindow
+            mainWindow?.delegate = self
             return
         }
+    }
 
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 1440, height: 900),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
-            backing: .buffered,
-            defer: false
-        )
-        window.titleVisibility = .hidden
-        window.titlebarAppearsTransparent = true
-        window.isReleasedWhenClosed = false
-        window.center()
-        window.contentView = NSHostingView(
-            rootView: ContentView()
-                .environmentObject(self)
-                .preferredColorScheme(.dark)
-        )
-        window.makeKeyAndOrderFront(nil)
+    @MainActor
+    func registerMainWindow(_ window: NSWindow) {
+        guard window.className != "NSStatusBarWindow", !(window is MenuBarPanel) else { return }
         mainWindow = window
+        mainWindow?.isReleasedWhenClosed = false
+        mainWindow?.delegate = self
+    }
+
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        guard sender == mainWindow else { return true }
+        sender.orderOut(nil)
+        return false
     }
 
     /// Setup menu bar with view model (called from ContentView) - ALWAYS ENABLED NOW
