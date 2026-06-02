@@ -167,10 +167,8 @@ struct ServerIconView: View {
                 // Validate and copy image to app container
                 let filename = try CustomIconManager.shared.storeCustomIcon(from: url, for: server.id)
                 onCustomIconSelected?(.success(filename))
-            } catch let error as CustomIconError {
-                // Pass specific error to ViewModel for detailed toast
-                onCustomIconSelected?(.failure(error))
             } catch {
+                // Pass the error (e.g. CustomIconError) to the ViewModel for a detailed toast.
                 onCustomIconSelected?(.failure(error))
             }
 

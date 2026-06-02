@@ -27,10 +27,10 @@ struct ServerGridView: View {
                                 viewModel.deleteServer(server)
                             },
                             onUpdate: { json in
-                                return viewModel.updateServer(server, with: json)
+                                viewModel.updateServer(server, with: json)
                             },
                             onUpdateForced: { config in
-                                return viewModel.updateServerForced(server, config: config)
+                                viewModel.updateServerForced(server, config: config)
                             },
                             onCustomIconSelected: { result in
                                 viewModel.updateCustomIcon(for: server, result: result)

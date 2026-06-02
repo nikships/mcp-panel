@@ -144,47 +144,38 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     /// Returns true if successful, false if failed
     @discardableResult
     func updateLaunchAtLogin(enabled: Bool) -> Bool {
-        if #available(macOS 13.0, *) {
-            do {
-                let currentStatus = SMAppService.mainApp.status
-                if enabled {
-                    if currentStatus == .enabled || currentStatus == .requiresApproval {
-                        return true // Already enabled
-                    }
-                    try SMAppService.mainApp.register()
-                    let updatedStatus = SMAppService.mainApp.status
-                    return updatedStatus == .enabled || updatedStatus == .requiresApproval
-                } else {
-                    if currentStatus != .notRegistered {
-                        try SMAppService.mainApp.unregister()
-                    }
-                    return true
+        do {
+            let currentStatus = SMAppService.mainApp.status
+            if enabled {
+                if currentStatus == .enabled || currentStatus == .requiresApproval {
+                    return true // Already enabled
                 }
-            } catch {
-                #if DEBUG
-                print("Failed to update launch at login: \(error)")
-                #endif
-                return false
+                try SMAppService.mainApp.register()
+                let updatedStatus = SMAppService.mainApp.status
+                return updatedStatus == .enabled || updatedStatus == .requiresApproval
+            } else {
+                if currentStatus != .notRegistered {
+                    try SMAppService.mainApp.unregister()
+                }
+                return true
             }
+        } catch {
+            #if DEBUG
+            print("Failed to update launch at login: \(error)")
+            #endif
+            return false
         }
-        return false
     }
 
     /// Check if launch at login is enabled
     func isLaunchAtLoginEnabled() -> Bool {
-        if #available(macOS 13.0, *) {
-            let status = SMAppService.mainApp.status
-            return status == .enabled || status == .requiresApproval
-        }
-        return false
+        let status = SMAppService.mainApp.status
+        return status == .enabled || status == .requiresApproval
     }
 
     /// Check if launch at login requires user approval
     func launchAtLoginRequiresApproval() -> Bool {
-        if #available(macOS 13.0, *) {
-            return SMAppService.mainApp.status == .requiresApproval
-        }
-        return false
+        SMAppService.mainApp.status == .requiresApproval
     }
 
     /// Try to sync launch at login with saved setting

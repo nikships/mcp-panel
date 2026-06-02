@@ -256,7 +256,7 @@ struct ServerConfig: Codable, Equatable {
 
         // Decode everything else
         for key in container.allKeys {
-            if !ServerConfig.knownKeys.contains(key.stringValue) {
+            if !Self.knownKeys.contains(key.stringValue) {
                 extra[key.stringValue] = try container.decode(AnyCodable.self, forKey: key)
             }
         }
@@ -363,5 +363,20 @@ struct ServerConfig: Codable, Equatable {
     private func formatURLHost(_ urlString: String) -> String {
         guard let url = URL(string: urlString) else { return urlString }
         return url.host ?? urlString
+    }
+
+    // MARK: - JSON
+
+    /// Pretty-printed JSON representation of this config.
+    var prettyJSON: String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+
+        guard let data = try? encoder.encode(self),
+              let string = String(data: data, encoding: .utf8) else {
+            return "{}"
+        }
+
+        return string
     }
 }

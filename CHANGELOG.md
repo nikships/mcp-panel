@@ -22,6 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Normal Dock App** - The app now shows in the Dock like a standard macOS app (activation policy `.regular`) while keeping the menu bar icon, instead of running as an accessory/menu-bar-only app.
 - **Simplified Theme Setting** - Removed the "Auto (Detect from Config)" theme option; the app now defaults to the Claude Code theme, and you can pick any of the built-in themes directly.
 - **Claude Logo in Header** - The active-config badge now shows the Claude logo (tinted to the theme accent) for a `.claude.json` config instead of the "Claude Code" text label.
+- **Internal Cleanup** - Simplified source across models, services, view models, and views (deduplicated JSON encoding, flattened redundant conditionals and availability guards) with no behavior change.
 
 ### Removed
 - **macOS Widget** - Removed the WidgetKit extension entirely (widget target, App Intents toggle, "Show in Widget" card button, and shared-storage sync). The app and its menu bar integration remain. The App Groups entitlement (`group.com.anand-92.mcp-panel`) is no longer needed; security-scoped bookmarks now live in standard app storage.

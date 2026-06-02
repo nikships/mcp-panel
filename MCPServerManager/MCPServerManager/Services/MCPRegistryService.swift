@@ -56,7 +56,12 @@ class MCPRegistryService: ObservableObject {
                 break
             }
 
-            let pageURL = cursor.flatMap { $0.isEmpty ? nil : $0 }.map { apiURL + "?cursor=\($0)" } ?? apiURL
+            let pageURL: String
+            if let cursor, !cursor.isEmpty {
+                pageURL = apiURL + "?cursor=\(cursor)"
+            } else {
+                pageURL = apiURL
+            }
 
             guard let url = URL(string: pageURL) else {
                 throw MCPRegistryError.invalidURL
@@ -183,8 +188,9 @@ class MCPRegistryService: ObservableObject {
     /// Create config from API remotes data (HTTP/SSE servers)
     private func createConfigFromRemotes(_ remotes: [APIRemoteConfig]) -> ServerConfig? {
         for remote in remotes {
-            guard let config = createConfigFromRemote(remote) else { continue }
-            return config
+            if let config = createConfigFromRemote(remote) {
+                return config
+            }
         }
 
         return nil
@@ -230,8 +236,9 @@ class MCPRegistryService: ObservableObject {
     /// Create config from API packages data (stdio servers)
     private func createConfigFromPackages(_ packages: [PackageInfo]) -> ServerConfig? {
         for package in packages {
-            guard let config = createConfigFromPackage(package) else { continue }
-            return config
+            if let config = createConfigFromPackage(package) {
+                return config
+            }
         }
 
         return nil

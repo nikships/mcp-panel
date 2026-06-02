@@ -63,25 +63,35 @@ final class ConfigFileWatcher {
 
     // MARK: - Arming
 
+    /// Resolve the on-disk URL for the current path inside the security-scoped bookmark.
+    private func resolvedConfigURL() -> URL {
+        let trimmedPath = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        return BookmarkManager.shared.resolveBookmark(for: trimmedPath)
+            ?? ConfigManager.shared.expandPath(trimmedPath)
+    }
+
+    /// Watch the file if it exists, otherwise watch its parent directory until it appears.
+    private func beginWatching(at url: URL) {
+        if FileManager.default.fileExists(atPath: url.path) {
+            watchFile(at: url)
+        } else {
+            watchParentDirectory(of: url)
+        }
+    }
+
     /// Resolve the on-disk URL inside the security scope and begin watching either the file
     /// (if it exists) or its parent directory (until the file appears).
     private func arm() {
         let trimmedPath = path.trimmingCharacters(in: .whitespacesAndNewlines)
-        let resolvedURL = BookmarkManager.shared.resolveBookmark(for: trimmedPath)
-            ?? ConfigManager.shared.expandPath(trimmedPath)
+        let resolvedURL = resolvedConfigURL()
 
         // Open the watch inside the security-scoped bookmark access.
-        if BookmarkManager.shared.hasBookmark(for: trimmedPath) {
-            if resolvedURL.startAccessingSecurityScopedResource() {
-                securityScopedURL = resolvedURL
-            }
+        if BookmarkManager.shared.hasBookmark(for: trimmedPath),
+           resolvedURL.startAccessingSecurityScopedResource() {
+            securityScopedURL = resolvedURL
         }
 
-        if FileManager.default.fileExists(atPath: resolvedURL.path) {
-            watchFile(at: resolvedURL)
-        } else {
-            watchParentDirectory(of: resolvedURL)
-        }
+        beginWatching(at: resolvedURL)
     }
 
     private func watchFile(at url: URL) {
@@ -171,15 +181,7 @@ final class ConfigFileWatcher {
         // Small delay so atomic replace completes before we re-open.
         queue.asyncAfter(deadline: .now() + 0.05) { [weak self] in
             guard let self else { return }
-            let trimmedPath = self.path.trimmingCharacters(in: .whitespacesAndNewlines)
-            let resolvedURL = BookmarkManager.shared.resolveBookmark(for: trimmedPath)
-                ?? ConfigManager.shared.expandPath(trimmedPath)
-
-            if FileManager.default.fileExists(atPath: resolvedURL.path) {
-                self.watchFile(at: resolvedURL)
-            } else {
-                self.watchParentDirectory(of: resolvedURL)
-            }
+            self.beginWatching(at: self.resolvedConfigURL())
         }
     }
 

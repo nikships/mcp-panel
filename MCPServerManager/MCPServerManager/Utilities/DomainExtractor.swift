@@ -6,10 +6,9 @@ struct DomainExtractor {
     /// Extract a domain from server name and config
     static func extractDomain(from serverName: String, config: ServerConfig) -> String? {
         // 1. Try to extract from command + args (most common: npx, uvx, docker)
-        if let command = config.command, let args = config.args {
-            if let domain = extractFromCommandAndArgs(command: command, args: args) {
-                return domain
-            }
+        if let command = config.command, let args = config.args,
+           let domain = extractFromCommandAndArgs(command: command, args: args) {
+            return domain
         }
 
         // 2. Try to extract from explicit URL in config (http transport)
@@ -23,10 +22,8 @@ struct DomainExtractor {
         }
 
         // 4. Try to extract from remotes
-        if let remotes = config.remotes, !remotes.isEmpty {
-            if let remoteURL = remotes.first?.url, let domain = extractFromURL(remoteURL) {
-                return domain
-            }
+        if let remoteURL = config.remotes?.first?.url, let domain = extractFromURL(remoteURL) {
+            return domain
         }
 
         // 5. Try to extract from server name itself
@@ -66,7 +63,7 @@ struct DomainExtractor {
         // Handle docker commands
         if lowerCommand == "docker" {
             // Look for image name in args (usually after 'run')
-            for (_, arg) in args.enumerated() {
+            for arg in args {
                 // Skip flags and their values
                 if arg.hasPrefix("-") {
                     continue
@@ -76,19 +73,16 @@ struct DomainExtractor {
                 // Examples:
                 // - ghcr.io/github/github-mcp-server → github
                 // - ghcr.io/sooperset/mcp-atlassian:latest → atlassian
-                if arg.contains("/") && !arg.hasPrefix("-") {
-                    if let domain = extractFromDockerImage(arg) {
-                        return domain
-                    }
+                if arg.contains("/"), let domain = extractFromDockerImage(arg) {
+                    return domain
                 }
             }
         }
 
         // Handle direct command names (e.g., postgres-mcp, filesystem-mcp)
-        if lowerCommand.contains("mcp") || lowerCommand.contains("-server") {
-            if let domain = extractFromPackageName(lowerCommand) {
-                return domain
-            }
+        if lowerCommand.contains("mcp") || lowerCommand.contains("-server"),
+           let domain = extractFromPackageName(lowerCommand) {
+            return domain
         }
 
         return nil
@@ -111,10 +105,10 @@ struct DomainExtractor {
             let org = String(components[components.count - 2]).lowercased()
 
             // Also check the image name (last component)
-            let imageName = String(components.last ?? "").lowercased()
+            let lastComponent = String(components.last ?? "").lowercased()
 
             // Try to extract from image name first (e.g., "mcp-atlassian" → atlassian)
-            if let domain = extractFromPackageName(imageName) {
+            if let domain = extractFromPackageName(lastComponent) {
                 return domain
             }
 
@@ -258,10 +252,9 @@ struct DomainExtractor {
         }
 
         // Check if the name itself looks like a domain
-        if lowerName.contains(".") && (lowerName.contains(".com") || lowerName.contains(".io") || lowerName.contains(".dev")) {
-            if let domain = extractFromURL("https://\(serverName)") {
-                return domain
-            }
+        if lowerName.contains(".com") || lowerName.contains(".io") || lowerName.contains(".dev"),
+           let domain = extractFromURL("https://\(serverName)") {
+            return domain
         }
 
         return nil

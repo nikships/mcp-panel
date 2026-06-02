@@ -168,23 +168,19 @@ struct RawJSONView: View {
         let result = viewModel.applyRawJSON(jsonText)
 
         if result.success {
-            // Success
             isDirty = false
             errorMessage = ""
         } else if let invalidServers = result.invalidServers {
-            // Validation failed, show force save alert
-            let details = invalidServers.map { name, reason in
-                "\(name): \(reason)"
-            }.joined(separator: "\n")
-
-            invalidServerDetails = details
+            // Validation failed, show force save alert.
+            invalidServerDetails = invalidServers
+                .map { name, reason in "\(name): \(reason)" }
+                .joined(separator: "\n")
             pendingSaveJSON = jsonText
-            pendingServerDict = result.serverDict  // Store parsed dictionary to avoid re-parsing
+            pendingServerDict = result.serverDict  // Store parsed dictionary to avoid re-parsing.
             showForceAlert = true
-        } else {
-            // JSON parsing error (toast already shown by viewModel)
-            // Keep isDirty as true and don't clear error
         }
+        // Otherwise a JSON parsing error occurred (toast already shown by the
+        // view model); keep isDirty true and leave the existing error in place.
     }
 
     private func forceSave() {

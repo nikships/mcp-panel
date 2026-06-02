@@ -35,15 +35,7 @@ struct RegistryServer: Identifiable, Codable {
 
     /// Formatted config as pretty JSON string
     var configJSON: String {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-
-        guard let data = try? encoder.encode(config),
-              let string = String(data: data, encoding: .utf8) else {
-            return "{}"
-        }
-
-        return string
+        config.prettyJSON
     }
 }
 

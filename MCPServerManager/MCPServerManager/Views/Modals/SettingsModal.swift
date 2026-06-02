@@ -679,15 +679,13 @@ private struct ThemePickerGrid: View {
 
     @Environment(\.themeColors) private var themeColors
 
-    private let themes: [AppTheme] = AppTheme.allCases
-
     private let columns = [
         GridItem(.adaptive(minimum: 100, maximum: 120), spacing: 10)
     ]
 
     var body: some View {
         LazyVGrid(columns: columns, spacing: 10) {
-            ForEach(themes, id: \.self) { theme in
+            ForEach(AppTheme.allCases, id: \.self) { theme in
                 ThemeSwatchButton(
                     theme: theme,
                     isSelected: selectedTheme == theme,
@@ -724,7 +722,7 @@ private struct ThemeSwatchButton: View {
         case .githubDark: return "GitHub"
         case .tokyoNight: return "Tokyo"
         case .catppuccin: return "Catppuccin"
-        default: return theme.rawValue.replacingOccurrences(of: " ", with: "\n").components(separatedBy: "\n").first ?? theme.rawValue
+        default: return theme.rawValue.components(separatedBy: " ").first ?? theme.rawValue
         }
     }
 

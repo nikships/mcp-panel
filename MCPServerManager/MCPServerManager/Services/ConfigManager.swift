@@ -87,30 +87,36 @@ class ConfigManager {
         try output.write(to: url, atomically: true, encoding: .utf8)
     }
 
+    /// True when a string is nil, empty, or only whitespace.
+    private func isBlank(_ value: String?) -> Bool {
+        guard let value else { return true }
+        return value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     private func normalizeForDroid(_ config: ServerConfig) -> ServerConfig {
         var normalized = config
 
-        if let command = normalized.command, !command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            if normalized.type?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+        if !isBlank(normalized.command) {
+            if isBlank(normalized.type) {
                 normalized.type = "stdio"
             }
             return normalized
         }
 
-        if let httpUrl = normalized.httpUrl, !httpUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            if normalized.type?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+        if let httpUrl = normalized.httpUrl, !isBlank(httpUrl) {
+            if isBlank(normalized.type) {
                 normalized.type = "http"
             }
-            if normalized.url?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+            if isBlank(normalized.url) {
                 normalized.url = httpUrl
             }
         }
 
         if let transport = normalized.transport {
-            if normalized.type?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+            if isBlank(normalized.type) {
                 normalized.type = transport.type
             }
-            if normalized.url?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false {
+            if isBlank(normalized.url) {
                 normalized.url = transport.url
             }
             if normalized.headers == nil {

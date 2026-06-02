@@ -65,11 +65,10 @@ class IconService: ObservableObject {
         }
 
         // 3. Fetch from remote if enabled
-        if UserDefaults.standard.bool(forKey: "fetchServerLogos") != false, let domain = domain {
-            if let remoteIcon = await fetchRemoteIcon(for: domain) {
-                cacheIcon(remoteIcon, for: domain)
-                return remoteIcon
-            }
+        if UserDefaults.standard.bool(forKey: "fetchServerLogos"), let domain,
+           let remoteIcon = await fetchRemoteIcon(for: domain) {
+            cacheIcon(remoteIcon, for: domain)
+            return remoteIcon
         }
 
         // 4. Fallback to nil (caller will show SF Symbol)
@@ -127,11 +126,9 @@ class IconService: ObservableObject {
         }
 
         // Try partial matches
-        for (key, assetName) in bundledLogos {
-            if lowerName.contains(key) {
-                if let image = NSImage(named: assetName) {
-                    return image
-                }
+        for (key, assetName) in bundledLogos where lowerName.contains(key) {
+            if let image = NSImage(named: assetName) {
+                return image
             }
         }
 
@@ -163,11 +160,9 @@ class IconService: ObservableObject {
         let variations = generateDomainVariations(domain)
 
         for testDomain in variations {
-            if let icon = await fetchBestIcon(for: testDomain) {
-                // Check if it's high quality enough
-                if scoreIcon(icon) > 100 { // Threshold for acceptable quality
-                    return icon
-                }
+            // Only accept icons that meet the quality threshold.
+            if let icon = await fetchBestIcon(for: testDomain), scoreIcon(icon) > 100 {
+                return icon
             }
         }
 

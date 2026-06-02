@@ -200,10 +200,12 @@ struct ContentView: View {
     // MARK: - Import Handler
 
     private func handleImport(_ result: Result<URL, Error>) {
-        guard case .success(let url) = result else {
-            if case .failure(let error) = result {
-                viewModel.showToast(message: "Import failed: \(error.localizedDescription)", type: .error)
-            }
+        let url: URL
+        switch result {
+        case .success(let importURL):
+            url = importURL
+        case .failure(let error):
+            viewModel.showToast(message: "Import failed: \(error.localizedDescription)", type: .error)
             return
         }
 
