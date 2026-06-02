@@ -54,10 +54,6 @@ class MenuBarController: NSObject {
 
     private let panelSize = NSSize(width: 280, height: 400)
 
-    override init() {
-        super.init()
-    }
-
     /// Clean up resources - called manually before releasing
     func cleanup() {
         removeEventMonitors()
@@ -78,22 +74,17 @@ class MenuBarController: NSObject {
         if panel != nil {
             updatePanelContent()
         }
-
-        print("MenuBarController setup with viewModel containing \(viewModel.servers.count) servers")
     }
 
     /// Show the menu bar icon
     func showMenuBarIcon() {
         guard statusItem == nil else {
-            print("📍 MenuBar: Status item already exists, skipping creation")
             return
         }
 
-        print("📍 MenuBar: Creating status item...")
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
 
         if let button = statusItem?.button {
-            print("📍 MenuBar: Setting up button with menu bar icon...")
             // Load menu bar icon from bundle resources
             var menuBarIcon: NSImage?
 
@@ -103,13 +94,11 @@ class MenuBarController: NSObject {
                let iconURL = bundle.url(forResource: "MenuBarIcon@2x", withExtension: "png", subdirectory: "Assets.xcassets/MenuBarIcon.imageset"),
                let image = NSImage(contentsOf: iconURL) {
                 menuBarIcon = image
-                print("📍 MenuBar: Loaded icon from bundle")
             }
 
             // Fallback: try NSImage(named:) for compiled asset catalog
             if menuBarIcon == nil, let image = NSImage(named: "MenuBarIcon") {
                 menuBarIcon = image
-                print("📍 MenuBar: Loaded icon from asset catalog")
             }
 
             if let icon = menuBarIcon {
@@ -118,19 +107,13 @@ class MenuBarController: NSObject {
                 button.image = icon
             } else {
                 // Final fallback to SF Symbol
-                print("⚠️ MenuBar: Using fallback SF Symbol")
                 button.image = NSImage(systemSymbolName: "server.rack", accessibilityDescription: "MCP Servers")
             }
             button.action = #selector(togglePanel)
             button.target = self
-            print("📍 MenuBar: Button setup complete")
-        } else {
-            print("❌ MenuBar: Failed to get button from status item")
         }
 
-        print("📍 MenuBar: Setting up panel...")
         setupPanel()
-        print("✅ MenuBar: Show menu bar icon complete")
     }
 
     /// Hide the menu bar icon
@@ -172,11 +155,8 @@ class MenuBarController: NSObject {
 
     private func updatePanelContent() {
         guard let viewModel = viewModel, let panel = panel else {
-            print("MenuBar: Cannot update panel content - no view model or panel")
             return
         }
-
-        print("MenuBar: Updating panel content with \(viewModel.servers.count) servers")
 
         let panelView = MenuBarPopoverView(
             viewModel: viewModel,
@@ -196,7 +176,6 @@ class MenuBarController: NSObject {
 
         // If no viewModel yet, just open the main app
         guard let viewModel = viewModel else {
-            print("No viewModel available, opening main app")
             openMainApp()
             return
         }
@@ -207,7 +186,6 @@ class MenuBarController: NSObject {
         }
 
         guard let panel = panel else {
-            print("Failed to create panel")
             return
         }
 
@@ -233,8 +211,6 @@ class MenuBarController: NSObject {
             // Show the panel
             panel.makeKeyAndOrderFront(nil)
             addEventMonitors()
-
-            print("Panel shown with \(viewModel.servers.count) servers")
         }
     }
 
@@ -305,8 +281,6 @@ class MenuBarController: NSObject {
             // Fallback: just use the first available window
             NSApp.windows.first?.makeKeyAndOrderFront(nil)
         }
-
-        print("📱 Opened main app window")
     }
 
     private func refreshServers() {

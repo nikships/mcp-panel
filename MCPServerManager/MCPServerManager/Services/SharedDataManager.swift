@@ -45,9 +45,16 @@ class SharedDataManager {
     /// Save config paths to shared UserDefaults
     func saveConfigPaths(config1: String, config2: String, activeIndex: Int) {
         guard let defaults = sharedDefaults else { return }
+        let normalizedActiveIndex = max(0, min(activeIndex, 1))
         defaults.set(config1, forKey: config1PathKey)
         defaults.set(config2, forKey: config2PathKey)
-        defaults.set(activeIndex, forKey: activeConfigIndexKey)
+        defaults.set(normalizedActiveIndex, forKey: activeConfigIndexKey)
+
+        // Preserve the widget's own selected config after it has been set, but
+        // seed it from the app so first-run widgets do not assume config 0.
+        if defaults.object(forKey: widgetActiveConfigKey) == nil {
+            defaults.set(normalizedActiveIndex, forKey: widgetActiveConfigKey)
+        }
         defaults.synchronize()
     }
 
@@ -58,7 +65,7 @@ class SharedDataManager {
               let config2 = defaults.string(forKey: config2PathKey) else {
             return nil
         }
-        let activeIndex = defaults.integer(forKey: activeConfigIndexKey)
+        let activeIndex = max(0, min(defaults.integer(forKey: activeConfigIndexKey), 1))
         return (config1, config2, activeIndex)
     }
 
@@ -68,13 +75,17 @@ class SharedDataManager {
 
     func saveWidgetActiveConfig(_ index: Int) {
         guard let defaults = sharedDefaults else { return }
-        defaults.set(index, forKey: widgetActiveConfigKey)
+        defaults.set(max(0, min(index, 1)), forKey: widgetActiveConfigKey)
         defaults.synchronize()
         reloadWidgetTimeline()
     }
 
     func loadWidgetActiveConfig() -> Int {
-        sharedDefaults?.integer(forKey: widgetActiveConfigKey) ?? 0
+        guard let defaults = sharedDefaults else { return 0 }
+        if defaults.object(forKey: widgetActiveConfigKey) != nil {
+            return max(0, min(defaults.integer(forKey: widgetActiveConfigKey), 1))
+        }
+        return max(0, min(defaults.integer(forKey: activeConfigIndexKey), 1))
     }
 
     // MARK: - Widget Server Model
@@ -162,6 +173,11 @@ class SharedDataManager {
         var servers = loadWidgetServers()
         if let index = servers.firstIndex(where: { $0.id == serverID }) {
             servers[index].isEnabled = isEnabled
+            let activeConfig = loadWidgetActiveConfig()
+            while servers[index].inConfigs.count <= activeConfig {
+                servers[index].inConfigs.append(false)
+            }
+            servers[index].inConfigs[activeConfig] = isEnabled
             saveWidgetServers(servers)
         }
     }
@@ -181,10 +197,11 @@ class SharedDataManager {
     static let serverToggledNotificationName = "MCPServerToggled"
 
     /// Post notification when server is toggled (from widget to main app)
-    func postServerToggledNotification(serverID: UUID, newState: Bool) {
+    func postServerToggledNotification(serverID: UUID, newState: Bool, configIndex: Int? = nil) {
         let userInfo: [String: Any] = [
             "serverID": serverID.uuidString,
-            "newState": newState
+            "newState": newState,
+            "configIndex": configIndex ?? loadWidgetActiveConfig()
         ]
 
         DistributedNotificationCenter.default().postNotificationName(

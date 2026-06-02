@@ -212,11 +212,6 @@ struct SmallWidgetView: View {
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(themeColors.primaryAccent)
 
-            #if DEBUG
-            Text("🔧")
-                .font(.system(size: 10))
-            #endif
-
             Spacer()
 
             WidgetConfigSwitch(entry: entry, themeColors: themeColors, fontSize: 10)
@@ -285,11 +280,6 @@ struct MediumWidgetView: View {
             Text("MCP Servers")
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(themeColors.primaryAccent)
-
-            #if DEBUG
-            Text("🔧")
-                .font(.system(size: 12))
-            #endif
 
             Spacer()
 
@@ -363,11 +353,6 @@ struct LargeWidgetView: View {
             Text("MCP Servers")
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(themeColors.primaryAccent)
-
-            #if DEBUG
-            Text("🔧")
-                .font(.system(size: 14))
-            #endif
 
             Spacer()
 

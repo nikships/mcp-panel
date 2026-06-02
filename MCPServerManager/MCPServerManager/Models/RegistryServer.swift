@@ -191,10 +191,52 @@ struct APIHeader: Codable {
     let name: String?
     let value: String?
     let variables: [String: APIHeaderVariable]?
+    let description: String?
+    let isSecret: Bool?
 
-    // Only consider valid if both name and value exist
-    var isValid: Bool {
-        name != nil && value != nil
+    enum CodingKeys: String, CodingKey {
+        case name, value, variables, description
+        case isSecret = "is_secret"
+    }
+
+    var headerName: String? {
+        if let trimmedName = name?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !trimmedName.isEmpty {
+            return trimmedName
+        }
+
+        let valueHint = value?.lowercased() ?? ""
+        let descriptionHint = description?.lowercased() ?? ""
+
+        if valueHint.contains("bearer") || descriptionHint.contains("authorization") || descriptionHint.contains("api token") {
+            return "Authorization"
+        }
+
+        if descriptionHint.contains("api key") {
+            return "X-API-Key"
+        }
+
+        return nil
+    }
+
+    var headerValue: String? {
+        if let trimmedValue = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !trimmedValue.isEmpty {
+            return trimmedValue
+        }
+
+        guard headerName != nil else { return nil }
+
+        let descriptionHint = description?.lowercased() ?? ""
+        if descriptionHint.contains("bearer") || descriptionHint.contains("token") {
+            return "Bearer <token>"
+        }
+
+        if descriptionHint.contains("api key") {
+            return "<api-key>"
+        }
+
+        return "<value>"
     }
 }
 

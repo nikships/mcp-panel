@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import shutil
 from PIL import Image
 import subprocess
 
@@ -47,7 +48,7 @@ def create_app_icon(input_image):
     subprocess.run(["iconutil", "-c", "icns", iconset_dir, "-o", f"{output_dir}/AppIcon.icns"])
 
     # Clean up iconset directory
-    subprocess.run(["rm", "-rf", iconset_dir])
+    shutil.rmtree(iconset_dir)
 
     print(f"\n✅ Final app icon created: {output_dir}/AppIcon.icns")
 

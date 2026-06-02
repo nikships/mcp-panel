@@ -12,6 +12,7 @@ struct MCPServerManagerApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(appDelegate)
                 .preferredColorScheme(.dark)
                 .onAppear {
                     // Ensure window accepts keyboard input
@@ -73,7 +74,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
 
         // Always run as menu bar app
         NSApp.setActivationPolicy(.accessory)
-        print("🚀 App launched as menu bar app (.accessory policy)")
 
         NSApp.activate(ignoringOtherApps: true)
 
@@ -82,8 +82,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
 
         // Setup widget notification listener
         setupWidgetNotificationListener()
-        
-        print("🎯 App finish launching - waiting for ContentView to set up menu bar...")
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -103,27 +101,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     /// Setup menu bar with view model (called from ContentView) - ALWAYS ENABLED NOW
     @MainActor
     func setupMenuBar(with viewModel: ServerViewModel) {
-        print("🔧 AppDelegate: Setting up menu bar with view model - ALWAYS ENABLED")
-        print("🔧 Current menuBarController: \(menuBarController == nil ? "nil" : "exists")")
-        
         // Always create the controller if it doesn't exist
         if menuBarController == nil {
-            print("🔧 Creating new MenuBarController...")
             menuBarController = MenuBarController()
         }
         
         // Set up the menu bar controller with the view model
-        print("🔧 Setting up menu bar controller with view model...")
         menuBarController?.setup(with: viewModel)
         
         // Make sure the menu bar icon is visible
-        print("🔧 Showing menu bar icon...")
         menuBarController?.showMenuBarIcon()
-        
-        print("✅ Menu bar setup complete with view model - should be visible now!")
-        
-        // Let's also check if the status item was created
-        print("🔍 Menu bar status: \(menuBarController?.hasStatusItem == true ? "STATUS ITEM EXISTS" : "NO STATUS ITEM")")
     }
 
     /// Update menu bar (simplified - always enabled now)
@@ -224,6 +211,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             #endif
             return
         }
+        let configIndex = max(0, min((pendingToggle["configIndex"] as? Int) ?? defaults.integer(forKey: "widgetActiveConfigIndex"), 1))
 
         // Clear the pending toggle
         defaults.removeObject(forKey: "pendingServerToggle")
@@ -233,6 +221,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         print("Widget toggled server: \(serverID), new state: \(newState)")
         #endif
 
+        let appActiveConfigIndex = max(0, min(defaults.integer(forKey: "activeConfigIndex"), 1))
+        guard configIndex == appActiveConfigIndex else {
+            #if DEBUG
+            print("Widget toggle: Ignoring local app toggle for config \(configIndex); app is on config \(appActiveConfigIndex)")
+            #endif
+            SharedDataManager.shared.reloadWidgetTimeline()
+            return
+        }
+
         // The actual toggle will be handled by the ServerViewModel
         // which listens to this notification
         NotificationCenter.default.post(
@@ -240,7 +237,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             object: nil,
             userInfo: [
                 "serverID": serverID,
-                "newState": newState
+                "newState": newState,
+                "configIndex": configIndex
             ]
         )
     }

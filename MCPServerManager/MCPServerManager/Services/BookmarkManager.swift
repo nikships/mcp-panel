@@ -60,8 +60,6 @@ class BookmarkManager {
         UserDefaults.standard.set(bookmarkData, forKey: key)
         sharedDefaults?.set(bookmarkData, forKey: key)
         sharedDefaults?.synchronize()
-
-        print("✅ Stored bookmark for: \(url.path)")
     }
 
     /// Resolves a bookmark for the given path and returns the URL
@@ -85,18 +83,8 @@ class BookmarkManager {
                 )
 
                 if isStale {
-                    print("⚠️ Bookmark is stale for: \(path), attempting to refresh...")
-                    do {
-                        let accessing = url.startAccessingSecurityScopedResource()
-                        defer {
-                            if accessing {
-                                url.stopAccessingSecurityScopedResource()
-                            }
-                        }
+                    try? url.withSecurityScopedAccess { url in
                         try storeBookmark(for: url)
-                        print("✅ Refreshed stale bookmark for: \(path)")
-                    } catch {
-                        print("⚠️ Could not refresh bookmark for: \(path) - will retry on next file selection")
                     }
                 }
 
@@ -106,15 +94,12 @@ class BookmarkManager {
                     sharedDefaults?.synchronize()
                 }
 
-                print("✅ Resolved bookmark for: \(path)")
                 return url
             } catch {
-                print("❌ Failed to resolve bookmark for: \(path) - \(error.localizedDescription)")
                 removeBookmarkData(forKey: key, from: store)
             }
         }
 
-        print("⚠️ No bookmark found for: \(path)")
         return nil
     }
 
@@ -124,7 +109,6 @@ class BookmarkManager {
         let key = Keys.bookmarkKey(for: expandedPath)
         removeBookmarkData(forKey: key, from: .standard)
         removeBookmarkData(forKey: key, from: .shared)
-        print("🗑️ Removed bookmark for: \(path)")
     }
 
     /// Checks if a bookmark exists for the given path
@@ -150,8 +134,6 @@ class BookmarkManager {
             }
             sharedDefaults.synchronize()
         }
-
-        print("🗑️ Cleared all bookmarks")
     }
 }
 

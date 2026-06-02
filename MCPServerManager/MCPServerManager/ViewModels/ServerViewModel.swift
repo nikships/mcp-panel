@@ -39,6 +39,12 @@ class ServerViewModel: ObservableObject {
         case success, error, warning
     }
 
+    enum AddServersResult {
+        case success
+        case validationFailed(invalidServers: [String: String], serverDict: [String: ServerConfig])
+        case failed
+    }
+
     init() {
         loadSettings()
 
@@ -97,9 +103,25 @@ class ServerViewModel: ObservableObject {
             config2: settings.configPaths[1],
             activeIndex: settings.activeConfigIndex
         )
+        SharedDataManager.shared.saveWidgetActiveConfig(settings.activeConfigIndex)
         // Save current theme for widget
         SharedDataManager.shared.saveTheme(currentTheme.rawValue)
         showToast(message: "Settings saved", type: .success)
+    }
+
+    func switchActiveConfig(to index: Int) {
+        let normalizedIndex = max(0, min(index, 1))
+        guard settings.activeConfigIndex != normalizedIndex else { return }
+
+        settings.activeConfigIndex = normalizedIndex
+        UserDefaults.standard.appSettings = settings
+        SharedDataManager.shared.saveConfigPaths(
+            config1: settings.configPaths[0],
+            config2: settings.configPaths[1],
+            activeIndex: normalizedIndex
+        )
+        SharedDataManager.shared.saveWidgetActiveConfig(normalizedIndex)
+        loadServers()
     }
 
     func completeOnboarding(configPath: String) {
@@ -122,6 +144,7 @@ class ServerViewModel: ObservableObject {
             config2: settings.configPaths[1],
             activeIndex: settings.activeConfigIndex
         )
+        SharedDataManager.shared.saveWidgetActiveConfig(settings.activeConfigIndex)
 
         Task {
             var loadError: Error?
@@ -145,6 +168,7 @@ class ServerViewModel: ObservableObject {
 
             skipSync = false
             isLoading = false
+            syncToWidget()
 
             if let error = loadError {
                 showToast(message: "Failed to load config: \(error.localizedDescription)", type: .error)
@@ -249,15 +273,15 @@ class ServerViewModel: ObservableObject {
 
     // MARK: - Server CRUD
 
-    func addServers(from jsonString: String, registryImages: [String: String]? = nil) -> (invalidServers: [String: String], serverDict: [String: ServerConfig])? {
+    func addServers(from jsonString: String, registryImages: [String: String]? = nil) -> AddServersResult {
         guard let serverDict = ServerExtractor.extractServerEntries(from: jsonString) else {
             showToast(message: "Could not parse JSON. Please check format.", type: .error)
-            return nil
+            return .failed
         }
 
         guard !serverDict.isEmpty else {
             showToast(message: "No servers found in JSON", type: .warning)
-            return nil
+            return .failed
         }
 
         // Check for invalid servers
@@ -266,11 +290,11 @@ class ServerViewModel: ObservableObject {
         }
 
         if !invalidServers.isEmpty {
-            return (invalidServers: invalidServers, serverDict: serverDict)
+            return .validationFailed(invalidServers: invalidServers, serverDict: serverDict)
         }
 
         addServersInternal(serverDict: serverDict, registryImages: registryImages, forceMode: false)
-        return nil
+        return .success
     }
 
     func addServersForced(from jsonString: String, registryImages: [String: String]? = nil) {
@@ -432,6 +456,10 @@ class ServerViewModel: ObservableObject {
             throw NSError(domain: "Invalid JSON", code: -1)
         }
 
+        if let wrapped = try? JSONDecoder().decode(ConfigManager.ConfigFile.self, from: data) {
+            return wrapped.mcpServers
+        }
+
         return try JSONDecoder().decode([String: ServerConfig].self, from: data)
     }
 
@@ -533,16 +561,22 @@ class ServerViewModel: ObservableObject {
     }
 
     func toggleServer(_ server: ServerModel) {
+        setServer(server, enabled: !(server.inConfigs[safe: settings.activeConfigIndex] ?? false), inConfigAt: settings.activeConfigIndex)
+    }
+
+    func setServer(_ server: ServerModel, enabled: Bool, inConfigAt configIndex: Int) {
         guard let index = servers.firstIndex(where: { $0.id == server.id }) else { return }
 
         var updated = servers[index]
-        let configIndex = settings.activeConfigIndex
+        let configIndex = max(0, min(configIndex, 1))
 
         while updated.inConfigs.count <= configIndex {
             updated.inConfigs.append(false)
         }
 
-        updated.inConfigs[configIndex].toggle()
+        guard updated.inConfigs[configIndex] != enabled else { return }
+
+        updated.inConfigs[configIndex] = enabled
         updated.updatedAt = Date()
         servers[index] = updated
 
@@ -553,7 +587,7 @@ class ServerViewModel: ObservableObject {
             syncToWidget()
         }
 
-        let status = updated.inConfigs[configIndex] ? "enabled" : "disabled"
+        let status = enabled ? "enabled" : "disabled"
         showToast(message: "\(server.name) \(status)", type: .success)
     }
 
@@ -649,6 +683,10 @@ class ServerViewModel: ObservableObject {
     // MARK: - Import/Export
 
     func exportServers() -> String {
+        configManager.exportServers(from: servers, configIndex: settings.activeConfigIndex)
+    }
+
+    func activeConfigServersJSON() -> String {
         configManager.exportServers(from: servers, configIndex: settings.activeConfigIndex)
     }
 

@@ -489,7 +489,6 @@ struct SettingsModal: View {
             let path = url.path.replacingOccurrences(of: NSHomeDirectory(), with: "~")
             completion(path)
         } catch {
-            print("Failed to store bookmark: \(error.localizedDescription)")
             bookmarkAlertMessage = "Failed to create persistent access to the selected file. The app may not be able to access this file after restart.\n\nError: \(error.localizedDescription)"
             showBookmarkAlert = true
         }
@@ -820,49 +819,6 @@ private struct ThemeSwatchButton: View {
         .buttonStyle(.plain)
         .onHover { hovering in
             isHovered = hovering
-        }
-    }
-}
-
-// MARK: - Settings Section (Legacy - kept for compatibility)
-
-struct SettingsSection<Content: View>: View {
-    let icon: String
-    let title: String
-    let description: String
-    @ViewBuilder let content: () -> Content
-
-    @Environment(\.themeColors) private var themeColors
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                Image(systemName: icon)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(themeColors.primaryAccent)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(DesignTokens.Typography.title3)
-
-                    Text(description)
-                        .font(DesignTokens.Typography.bodySmall)
-                        .foregroundColor(.secondary)
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 12) {
-                content()
-            }
-            .padding(16)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.white.opacity(0.03))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                    )
-            )
         }
     }
 }

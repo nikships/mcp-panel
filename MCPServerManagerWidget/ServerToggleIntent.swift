@@ -30,13 +30,15 @@ struct ServerToggleIntent: AppIntent {
         }
 
         // Toggle server in actual config files
-        toggleServerInConfigs(serverID: uuid, newState: newState)
+        let toggleResult = toggleServerInConfigs(serverID: uuid, newState: newState)
 
         // Update the widget display state
-        updateServerState(serverID: uuid, newState: newState)
+        if toggleResult.didWrite {
+            updateServerState(serverID: uuid, newState: newState, configIndex: toggleResult.configIndex)
+        }
 
         // Post notification to main app (in case it's running)
-        postNotificationToMainApp(serverID: uuid, newState: newState)
+        postNotificationToMainApp(serverID: uuid, newState: newState, configIndex: toggleResult.configIndex)
 
         // Reload widget timeline
         WidgetCenter.shared.reloadAllTimelines()
@@ -46,53 +48,99 @@ struct ServerToggleIntent: AppIntent {
 
     // MARK: - Config File Updates
 
-    private func toggleServerInConfigs(serverID: UUID, newState: Bool) {
+    private func toggleServerInConfigs(serverID: UUID, newState: Bool) -> (configIndex: Int, didWrite: Bool) {
         guard let defaults = UserDefaults(suiteName: suiteName),
               let config1Path = defaults.string(forKey: WidgetConstants.config1PathKey),
               let config2Path = defaults.string(forKey: WidgetConstants.config2PathKey),
               let widgetData = defaults.data(forKey: widgetServersKey),
-              let widgetServers = try? JSONDecoder().decode([SharedWidgetServerForIntent].self, from: widgetData),
+              let widgetServers = try? JSONDecoder().decode([SharedWidgetServer].self, from: widgetData),
               let widgetServer = widgetServers.first(where: { $0.id == serverID }) else {
-            return
+            return (0, false)
         }
 
         // Use widget's active config to determine which config file to update
-        let activeConfig = defaults.integer(forKey: WidgetConstants.widgetActiveConfigKey)
+        let activeConfig = loadActiveConfig(defaults: defaults)
         let configPath = activeConfig == 0 ? config1Path : config2Path
+        let fallbackConfigPath = activeConfig == 0 ? config2Path : config1Path
 
-        toggleInConfig(serverID: serverID, serverName: widgetServer.name, newState: newState, configPath: configPath)
+        let didWrite = toggleInConfig(
+            serverName: widgetServer.name,
+            newState: newState,
+            configPath: configPath,
+            fallbackConfigPath: fallbackConfigPath
+        )
+        return (activeConfig, didWrite)
     }
 
-    private func toggleInConfig(serverID: UUID, serverName: String, newState: Bool, configPath: String) {
+    private func toggleInConfig(
+        serverName: String,
+        newState: Bool,
+        configPath: String,
+        fallbackConfigPath: String
+    ) -> Bool {
         let url = resolveConfigURL(configPath)
-
-        // Read existing config
-        guard let data = try? Data(contentsOf: url),
-              var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return
+        let accessing = url.startAccessingSecurityScopedResource()
+        defer {
+            if accessing {
+                url.stopAccessingSecurityScopedResource()
+            }
         }
 
-        // Get or create mcpServers object
+        // Read existing config
+        let existingData = try? Data(contentsOf: url)
+        var json = existingData.flatMap {
+            try? JSONSerialization.jsonObject(with: $0) as? [String: Any]
+        } ?? [:]
+
         var mcpServers = json["mcpServers"] as? [String: Any] ?? [:]
 
-        // Toggle the server's disabled state
-        if var serverConfig = mcpServers[serverName] as? [String: Any] {
-            if newState {
-                // Enable: remove disabled field
-                serverConfig.removeValue(forKey: "disabled")
-            } else {
-                // Disable: set disabled to true
-                serverConfig["disabled"] = true
+        if newState {
+            guard mcpServers[serverName] == nil else {
+                return true
+            }
+
+            guard let serverConfig = loadServerConfig(named: serverName, from: fallbackConfigPath) else {
+                return false
             }
             mcpServers[serverName] = serverConfig
+        } else {
+            guard mcpServers.removeValue(forKey: serverName) != nil else {
+                return true
+            }
         }
 
         // Save back to config
         json["mcpServers"] = mcpServers
 
         if let outputData = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]) {
-            try? outputData.write(to: url)
+            do {
+                try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try outputData.write(to: url)
+                return true
+            } catch {
+                return false
+            }
         }
+
+        return false
+    }
+
+    private func loadServerConfig(named serverName: String, from configPath: String) -> [String: Any]? {
+        let url = resolveConfigURL(configPath)
+        let accessing = url.startAccessingSecurityScopedResource()
+        defer {
+            if accessing {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        guard let data = try? Data(contentsOf: url),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let mcpServers = json["mcpServers"] as? [String: Any] else {
+            return nil
+        }
+
+        return mcpServers[serverName] as? [String: Any]
     }
 
     private func resolveConfigURL(_ path: String) -> URL {
@@ -156,17 +204,28 @@ struct ServerToggleIntent: AppIntent {
     private let suiteName = WidgetConstants.suiteName
     private let widgetServersKey = WidgetConstants.widgetServersKey
 
-    private func updateServerState(serverID: UUID, newState: Bool) {
+    private func loadActiveConfig(defaults: UserDefaults) -> Int {
+        if defaults.object(forKey: WidgetConstants.widgetActiveConfigKey) != nil {
+            return max(0, min(defaults.integer(forKey: WidgetConstants.widgetActiveConfigKey), 1))
+        }
+        return max(0, min(defaults.integer(forKey: WidgetConstants.activeConfigIndexKey), 1))
+    }
+
+    private func updateServerState(serverID: UUID, newState: Bool, configIndex: Int) {
         guard let defaults = UserDefaults(suiteName: suiteName),
               let data = defaults.data(forKey: widgetServersKey) else {
             return
         }
 
         do {
-            var servers = try JSONDecoder().decode([SharedWidgetServerForIntent].self, from: data)
+            var servers = try JSONDecoder().decode([SharedWidgetServer].self, from: data)
 
             if let index = servers.firstIndex(where: { $0.id == serverID }) {
                 servers[index].isEnabled = newState
+                while servers[index].inConfigs.count <= configIndex {
+                    servers[index].inConfigs.append(false)
+                }
+                servers[index].inConfigs[configIndex] = newState
                 let updatedData = try JSONEncoder().encode(servers)
                 defaults.set(updatedData, forKey: widgetServersKey)
                 defaults.synchronize()
@@ -178,13 +237,14 @@ struct ServerToggleIntent: AppIntent {
 
     // MARK: - Notification
 
-    private func postNotificationToMainApp(serverID: UUID, newState: Bool) {
+    private func postNotificationToMainApp(serverID: UUID, newState: Bool, configIndex: Int) {
         guard let defaults = UserDefaults(suiteName: suiteName) else { return }
 
         // Store pending toggle in shared UserDefaults (sandboxed apps can't pass userInfo)
         let pendingToggle: [String: Any] = [
             "serverID": serverID.uuidString,
             "newState": newState,
+            "configIndex": configIndex,
             "timestamp": Date().timeIntervalSince1970
         ]
         defaults.set(pendingToggle, forKey: "pendingServerToggle")
@@ -211,33 +271,17 @@ struct ConfigSwitchIntent: AppIntent {
             return .result()
         }
 
-        let current = defaults.integer(forKey: WidgetConstants.widgetActiveConfigKey)
+        let current: Int
+        if defaults.object(forKey: WidgetConstants.widgetActiveConfigKey) != nil {
+            current = max(0, min(defaults.integer(forKey: WidgetConstants.widgetActiveConfigKey), 1))
+        } else {
+            current = max(0, min(defaults.integer(forKey: WidgetConstants.activeConfigIndexKey), 1))
+        }
         let newIndex = 1 - current
         defaults.set(newIndex, forKey: WidgetConstants.widgetActiveConfigKey)
         defaults.synchronize()
 
         WidgetCenter.shared.reloadAllTimelines()
         return .result()
-    }
-}
-
-/// Shared widget server model for intent (must match SharedDataManager.WidgetServer)
-@available(macOS 14.0, *)
-private struct SharedWidgetServerForIntent: Codable, Identifiable {
-    let id: UUID
-    let name: String
-    var isEnabled: Bool
-    let configIndex: Int
-    var inConfigs: [Bool]
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(UUID.self, forKey: .id)
-        name = try container.decode(String.self, forKey: .name)
-        isEnabled = try container.decode(Bool.self, forKey: .isEnabled)
-        configIndex = try container.decode(Int.self, forKey: .configIndex)
-        var decoded = try container.decodeIfPresent([Bool].self, forKey: .inConfigs) ?? [false, false]
-        while decoded.count < 2 { decoded.append(false) }
-        inConfigs = Array(decoded.prefix(2))
     }
 }

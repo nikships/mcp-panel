@@ -10,12 +10,39 @@ struct QuickActionsMenu: View {
     @Environment(\.themeColors) private var themeColors
     @State private var animateIn = false
 
-    private let actions: [(icon: String, title: String, subtitle: String, colorKey: String)] = [
-        ("sparkles", "Explore MCPs", "Browse registry", "secondary"),
-        ("plus", "New Server", "Add manually", "success"),
-        ("arrow.down.doc", "Import", "From JSON file", "primary"),
-        ("arrow.up.doc", "Export", "To JSON file", "warning")
-    ]
+    private enum QuickAction: CaseIterable {
+        case registry
+        case addServer
+        case importJSON
+        case exportJSON
+
+        var icon: String {
+            switch self {
+            case .registry: return "sparkles"
+            case .addServer: return "plus"
+            case .importJSON: return "arrow.down.doc"
+            case .exportJSON: return "arrow.up.doc"
+            }
+        }
+
+        var title: String {
+            switch self {
+            case .registry: return "Explore MCPs"
+            case .addServer: return "New Server"
+            case .importJSON: return "Import"
+            case .exportJSON: return "Export"
+            }
+        }
+
+        var subtitle: String {
+            switch self {
+            case .registry: return "Browse registry"
+            case .addServer: return "Add manually"
+            case .importJSON: return "From JSON file"
+            case .exportJSON: return "To JSON file"
+            }
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -30,16 +57,16 @@ struct QuickActionsMenu: View {
                 .offset(y: animateIn ? 0 : -10)
 
             VStack(spacing: 4) {
-                ForEach(Array(actions.enumerated()), id: \.offset) { index, action in
+                ForEach(Array(QuickAction.allCases.enumerated()), id: \.element) { index, action in
                     QuickActionButton(
                         icon: action.icon,
                         title: action.title,
                         subtitle: action.subtitle,
-                        color: colorForKey(action.colorKey),
+                        color: color(for: action),
                         delay: Double(index) * 0.05,
                         animateIn: animateIn
                     ) {
-                        handleAction(index)
+                        handleAction(action)
                     }
                 }
             }
@@ -74,27 +101,25 @@ struct QuickActionsMenu: View {
         }
     }
 
-    private func colorForKey(_ key: String) -> Color {
-        switch key {
-        case "primary": return themeColors.primaryAccent
-        case "secondary": return themeColors.secondaryAccent
-        case "success": return themeColors.successColor
-        case "warning": return themeColors.warningColor
-        default: return themeColors.primaryAccent
+    private func color(for action: QuickAction) -> Color {
+        switch action {
+        case .registry: return themeColors.secondaryAccent
+        case .addServer: return themeColors.successColor
+        case .importJSON: return themeColors.primaryAccent
+        case .exportJSON: return themeColors.warningColor
         }
     }
 
-    private func handleAction(_ index: Int) {
+    private func handleAction(_ action: QuickAction) {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
             isExpanded = false
         }
 
-        switch index {
-        case 0: openRegistry()
-        case 1: showAddServer = true
-        case 2: showImporter = true
-        case 3: showExporter = true
-        default: break
+        switch action {
+        case .registry: openRegistry()
+        case .addServer: showAddServer = true
+        case .importJSON: showImporter = true
+        case .exportJSON: showExporter = true
         }
     }
 

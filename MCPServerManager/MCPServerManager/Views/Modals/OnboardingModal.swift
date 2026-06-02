@@ -6,7 +6,6 @@ struct OnboardingModal: View {
     @Environment(\.themeColors) private var themeColors
 
     @State private var selectedPath: String = ""
-    @State private var showingFilePicker = false
     @State private var showBookmarkAlert: Bool = false
     @State private var bookmarkAlertMessage: String = ""
 
@@ -152,10 +151,8 @@ struct OnboardingModal: View {
             // Store security-scoped bookmark for this file
             do {
                 try ConfigManager.shared.storeBookmarkForConfigFile(url: url, path: url.path)
-                print("✅ Stored bookmark during onboarding")
                 selectedPath = url.path.replacingOccurrences(of: NSHomeDirectory(), with: "~")
             } catch {
-                print("❌ Failed to store bookmark during onboarding: \(error.localizedDescription)")
                 // Show alert - this is critical for onboarding
                 bookmarkAlertMessage = "Failed to create persistent access to the selected file. The app may not be able to access this file after restart.\n\nError: \(error.localizedDescription)\n\nPlease try selecting the file again."
                 showBookmarkAlert = true

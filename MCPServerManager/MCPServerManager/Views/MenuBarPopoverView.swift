@@ -84,8 +84,7 @@ struct MenuBarPopoverView: View {
     private var configSwitchButton: some View {
         Button {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                viewModel.settings.activeConfigIndex = 1 - viewModel.settings.activeConfigIndex
-                viewModel.saveSettings()
+                viewModel.switchActiveConfig(to: 1 - viewModel.settings.activeConfigIndex)
             }
         } label: {
             Text(configNames.active)

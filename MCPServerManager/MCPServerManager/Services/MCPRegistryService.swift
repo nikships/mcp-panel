@@ -16,7 +16,7 @@ class MCPRegistryService: ObservableObject {
     // Compiled regex patterns for better performance (Sendable, safe for concurrent access)
     nonisolated private static let jsonBlockRegex = try! NSRegularExpression(pattern: #"```json\s*\n(.*?)\n```"#, options: [.dotMatchesLineSeparators])
     nonisolated private static let codeBlockRegex = try! NSRegularExpression(pattern: #"```\s*\n(\{.*?\})\n```"#, options: [.dotMatchesLineSeparators])
-    nonisolated private static let inlineRegex = try! NSRegularExpression(pattern: #""[^"]+"\s*:\s*\{[\s\S]*?"command"\s*:[\s\S]*?\}"#, options: [])
+    nonisolated private static let inlineRegex = try! NSRegularExpression(pattern: #""[^"]+"\s*:\s*\{[\s\S]*?"(?:command|httpUrl|url|transport|remotes|type)"\s*:[\s\S]*?\}"#, options: [])
 
     private init() {}
 
@@ -137,13 +137,13 @@ class MCPRegistryService: ObservableObject {
                 return nil
             }
 
-            let packageInfo = apiServer.packages?.first
+            let packageInfo = apiServer.packages?.first(where: { inferRegistryName(for: $0) != nil }) ?? apiServer.packages?.first
             let metadata = RegistryMetadata(
                 createdAt: apiServer.createdAt,
                 updatedAt: apiServer.updatedAt,
                 packageIdentifier: packageInfo?.name,
                 packageVersion: packageInfo?.version,
-                registryType: packageInfo?.registryName,
+                registryType: packageInfo.flatMap { inferRegistryName(for: $0) } ?? packageInfo?.registryName,
                 runtimeHint: packageInfo?.runtimeHint
             )
 
@@ -182,19 +182,31 @@ class MCPRegistryService: ObservableObject {
 
     /// Create config from API remotes data (HTTP/SSE servers)
     private func createConfigFromRemotes(_ remotes: [APIRemoteConfig]) -> ServerConfig? {
-        // Use the first remote
-        guard let remote = remotes.first else { return nil }
+        for remote in remotes {
+            guard let config = createConfigFromRemote(remote) else { continue }
+            return config
+        }
 
-        // Map transport type to our config format
+        return nil
+    }
+
+    /// Create config from one API remote data entry.
+    private func createConfigFromRemote(_ remote: APIRemoteConfig) -> ServerConfig? {
+        let url = remote.url.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard Self.isUsableRemoteURL(url) else { return nil }
+
+        // Map transport type to our config format. Empty registry values are common for streamable HTTP.
         let transportType: String
-        switch remote.transportType.lowercased() {
+        switch remote.transportType.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
         case "sse":
             transportType = "sse"
-        case "streamable-http", "http", "https":
+        case "", "streamable-http", "http", "https":
             transportType = "http"
         default:
             transportType = remote.transportType
         }
+
+        let headers = headersDictionary(from: remote.headers)
 
         // Create config with type and url
         let config = ServerConfig(
@@ -205,7 +217,8 @@ class MCPRegistryService: ObservableObject {
             transport: nil,
             remotes: nil,
             type: transportType,
-            url: remote.url
+            url: url,
+            headers: headers
         )
 
         // Validate it's a proper remote config
@@ -216,26 +229,35 @@ class MCPRegistryService: ObservableObject {
 
     /// Create config from API packages data (stdio servers)
     private func createConfigFromPackages(_ packages: [PackageInfo]) -> ServerConfig? {
-        // Use the first package
-        guard let package = packages.first,
-              let name = package.name,
-              let registryName = package.registryName else { return nil }
+        for package in packages {
+            guard let config = createConfigFromPackage(package) else { continue }
+            return config
+        }
+
+        return nil
+    }
+
+    /// Create config from one API package data entry.
+    private func createConfigFromPackage(_ package: PackageInfo) -> ServerConfig? {
+        guard let rawName = package.name?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !rawName.isEmpty,
+              let registryName = inferRegistryName(for: package) else { return nil }
 
         // Create config based on registry type
         let command: String
         let args: [String]
 
-        switch registryName.lowercased() {
+        switch registryName {
         case "npm":
-            command = package.runtimeHint ?? "npx"
-            args = [name]
+            command = runtimeCommand(from: package.runtimeHint, defaultCommand: "npx")
+            args = [rawName]
         case "pypi":
-            command = package.runtimeHint ?? "uvx"
-            args = [name]
+            command = runtimeCommand(from: package.runtimeHint, defaultCommand: "uvx")
+            args = [rawName]
         case "oci":
             // Docker-based servers
             command = "docker"
-            args = ["run", "-i", name]
+            args = ["run", "-i", rawName]
         default:
             #if DEBUG
             print("MCPRegistryService: Unknown registry type: \(registryName)")
@@ -258,6 +280,76 @@ class MCPRegistryService: ObservableObject {
         guard config.isValid else { return nil }
 
         return config
+    }
+
+    private func runtimeCommand(from runtimeHint: String?, defaultCommand: String) -> String {
+        guard let command = runtimeHint?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !command.isEmpty else {
+            return defaultCommand
+        }
+
+        return command
+    }
+
+    private func inferRegistryName(for package: PackageInfo) -> String? {
+        if let registryName = package.registryName?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+           !registryName.isEmpty {
+            return registryName
+        }
+
+        let registryBaseURL = package.registryBaseUrl?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if let registryBaseURL, !registryBaseURL.isEmpty {
+            if registryBaseURL.contains("npmjs") {
+                return "npm"
+            }
+
+            if registryBaseURL.contains("pypi") || registryBaseURL.contains("pythonhosted") {
+                return "pypi"
+            }
+
+            if registryBaseURL.contains("docker") || registryBaseURL.contains("ghcr.io") || registryBaseURL.contains("quay.io") {
+                return "oci"
+            }
+        }
+
+        let runtimeHint = package.runtimeHint?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        switch runtimeHint {
+        case "npx", "npm", "node", "yarn", "pnpm":
+            return "npm"
+        case "uvx", "uv", "python", "python3", "pip", "pipx":
+            return "pypi"
+        case "docker", "podman":
+            return "oci"
+        default:
+            break
+        }
+
+        guard let name = package.name?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !name.isEmpty else {
+            return nil
+        }
+
+        if name.hasPrefix("@") {
+            return "npm"
+        }
+
+        if name.contains("/") || name.contains(":") {
+            return "oci"
+        }
+
+        return nil
+    }
+
+    private func headersDictionary(from apiHeaders: [APIHeader]?) -> [String: String]? {
+        guard let apiHeaders, !apiHeaders.isEmpty else { return nil }
+
+        var headers: [String: String] = [:]
+        for header in apiHeaders {
+            guard let name = header.headerName, let value = header.headerValue else { continue }
+            headers[name] = value
+        }
+
+        return headers.isEmpty ? nil : headers
     }
 
     /// Extract MCP config from README markdown
@@ -303,7 +395,7 @@ class MCPRegistryService: ObservableObject {
         }
 
         // Pattern 3: Inline JSON with server name (e.g., "server-name": { ... })
-        // This catches configs like: "chroma": { "command": "uvx", "args": [...] }
+        // This catches configs like command-based stdio and URL-based remote configs.
         let matches3 = Self.inlineRegex.matches(in: markdown, range: NSRange(markdown.startIndex..., in: markdown))
         for match in matches3 {
             if let range = Range(match.range, in: markdown) {
@@ -404,14 +496,14 @@ class MCPRegistryService: ObservableObject {
         }
 
         // Check if it's a direct server config
-        if json["command"] != nil || json["args"] != nil {
+        if Self.looksLikeServerConfig(json) {
             return parseServerConfig(json)
         }
 
         // Check if it's a nested structure
         for value in json.values {
             if let serverDict = value as? [String: Any],
-               serverDict["command"] != nil || serverDict["args"] != nil {
+               Self.looksLikeServerConfig(serverDict) {
                 return parseServerConfig(serverDict)
             }
         }
@@ -423,11 +515,59 @@ class MCPRegistryService: ObservableObject {
     private nonisolated func parseServerConfig(_ dict: [String: Any]) -> ServerConfig? {
         guard let configData = try? JSONSerialization.data(withJSONObject: dict),
               let config = try? JSONDecoder().decode(ServerConfig.self, from: configData),
-              config.isValid else {
+              config.isValid,
+              !Self.hasPlaceholderRemoteURL(config) else {
             return nil
         }
 
         return config
+    }
+
+    private nonisolated static func looksLikeServerConfig(_ dict: [String: Any]) -> Bool {
+        let keys = ["command", "args", "httpUrl", "transport", "remotes", "type", "url"]
+        return keys.contains { dict[$0] != nil }
+    }
+
+    private nonisolated static func hasPlaceholderRemoteURL(_ config: ServerConfig) -> Bool {
+        if let url = config.url, !isUsableRemoteURL(url) {
+            return true
+        }
+
+        if let httpUrl = config.httpUrl, !isUsableRemoteURL(httpUrl) {
+            return true
+        }
+
+        if let transportURL = config.transport?.url, !isUsableRemoteURL(transportURL) {
+            return true
+        }
+
+        if let remotes = config.remotes,
+           remotes.contains(where: { !isUsableRemoteURL($0.url) }) {
+            return true
+        }
+
+        return false
+    }
+
+    private nonisolated static func isUsableRemoteURL(_ urlString: String) -> Bool {
+        let trimmed = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+
+        let lowercase = trimmed.lowercased()
+        let placeholderFragments = ["<", ">", "{", "}", "$", "example.com", "your-", "your_", "localhost", "127.0.0.1", "0.0.0.0"]
+        guard !placeholderFragments.contains(where: { lowercase.contains($0) }) else {
+            return false
+        }
+
+        guard let url = URL(string: trimmed),
+              let scheme = url.scheme?.lowercased(),
+              ["http", "https"].contains(scheme),
+              let host = url.host,
+              !host.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return false
+        }
+
+        return true
     }
 }
 

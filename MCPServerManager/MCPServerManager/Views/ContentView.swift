@@ -9,6 +9,9 @@ struct ContentView: View {
     @State private var showQuickActions = false
     @State private var showImporter = false
     @State private var showExporter = false
+    @State private var showImportForceAlert = false
+    @State private var importInvalidServerDetails = ""
+    @State private var pendingImportServers: [String: ServerConfig]?
 
     var body: some View {
         ZStack {
@@ -40,15 +43,20 @@ struct ContentView: View {
             defaultFilename: "mcp-servers.json"
         ) { _ in }
         .onAppear {
-            // Setup menu bar with view model (this ensures view model is available)
-            print("ContentView appeared - setting up menu bar with view model")
-            
-            // Use the environment object directly
-            print("✅ Using AppDelegate environment object, calling setupMenuBar...")
             appDelegate.setupMenuBar(with: viewModel)
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("WidgetServerToggled"))) { notification in
             handleWidgetServerToggle(notification)
+        }
+        .alert("Invalid Imported Servers", isPresented: $showImportForceAlert) {
+            Button("Cancel", role: .cancel) {
+                clearPendingImport()
+            }
+            Button("Force Import") {
+                forceImport()
+            }
+        } message: {
+            Text("The imported file contains validation errors:\n\n\(importInvalidServerDetails)\n\nDo you want to force import anyway?")
         }
     }
 
@@ -60,12 +68,13 @@ struct ContentView: View {
               let newState = userInfo["newState"] as? Bool else {
             return
         }
+        let configIndex = userInfo["configIndex"] as? Int ?? viewModel.settings.activeConfigIndex
 
         // Find and toggle the server
         if let server = viewModel.servers.first(where: { $0.id == serverID }) {
-            let currentState = server.inConfigs[safe: viewModel.settings.activeConfigIndex] ?? false
+            let currentState = server.inConfigs[safe: configIndex] ?? false
             if currentState != newState {
-                viewModel.toggleServer(server)
+                viewModel.setServer(server, enabled: newState, inConfigAt: configIndex)
             }
         }
     }
@@ -215,7 +224,7 @@ struct ContentView: View {
     private func handleImport(_ result: Result<URL, Error>) {
         guard case .success(let url) = result else {
             if case .failure(let error) = result {
-                print("ERROR: File picker error: \(error)")
+                viewModel.showToast(message: "Import failed: \(error.localizedDescription)", type: .error)
             }
             return
         }
@@ -229,10 +238,60 @@ struct ContentView: View {
 
         guard let data = try? Data(contentsOf: url),
               let jsonString = String(data: data, encoding: .utf8) else {
-            print("ERROR: Failed to read import file")
+            viewModel.showToast(message: "Could not read the selected JSON file", type: .error)
             return
         }
 
-        _ = viewModel.addServers(from: jsonString)
+        switch viewModel.addServers(from: jsonString) {
+        case .success:
+            break
+        case .validationFailed(let invalidServers, let serverDict):
+            importInvalidServerDetails = invalidServers
+                .map { "\($0.key): \($0.value)" }
+                .joined(separator: "\n")
+            pendingImportServers = serverDict
+            showImportForceAlert = true
+        case .failed:
+            break
+        }
+    }
+
+    private func forceImport() {
+        if let pendingImportServers {
+            viewModel.addServersForced(serverDict: pendingImportServers)
+        }
+        clearPendingImport()
+    }
+
+    private func clearPendingImport() {
+        showImportForceAlert = false
+        importInvalidServerDetails = ""
+        pendingImportServers = nil
+    }
+}
+
+struct JSONDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.json] }
+
+    var content: String
+
+    init(content: String) {
+        self.content = content
+    }
+
+    init(configuration: ReadConfiguration) throws {
+        if let data = configuration.file.regularFileContents,
+           let string = String(data: data, encoding: .utf8) {
+            content = string
+        } else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        guard let data = content.data(using: .utf8) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        return FileWrapper(regularFileWithContents: data)
     }
 }

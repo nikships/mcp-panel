@@ -22,7 +22,7 @@ let package = Package(
                 .product(name: "Sparkle", package: "Sparkle")
             ],
             path: "MCPServerManager",
-            exclude: ["Info.plist"],
+            exclude: ["Info.plist", "MCPServerManager.entitlements"],
             resources: [
                 .process("Resources"),
                 .process("Assets.xcassets")

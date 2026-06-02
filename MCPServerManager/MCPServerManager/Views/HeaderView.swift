@@ -488,8 +488,7 @@ private struct ConfigSwitcherPills: View {
                     namespace: namespace
                 ) {
                     withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                        viewModel.settings.activeConfigIndex = index
-                        viewModel.loadServers()
+                        viewModel.switchActiveConfig(to: index)
                     }
                 }
             }
@@ -582,123 +581,5 @@ private struct SettingsButton: View {
             }
         }
         .help("Settings")
-    }
-}
-
-// MARK: - Config Button (Legacy - kept for compatibility)
-
-struct ConfigButton: View {
-    let path: String
-    let isActive: Bool
-    let action: () -> Void
-    @Environment(\.themeColors) private var themeColors
-
-    private var backgroundStyle: AnyShapeStyle {
-        if isActive {
-            return AnyShapeStyle(themeColors.accentGradient)
-        } else {
-            return AnyShapeStyle(themeColors.glassBackground)
-        }
-    }
-
-    private var textColor: Color {
-        isActive ? themeColors.textOnAccent : themeColors.mutedText
-    }
-
-    var body: some View {
-        Button(action: action) {
-            Text(path.shortPath())
-                .font(DesignTokens.Typography.label)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(RoundedRectangle(cornerRadius: 16).fill(backgroundStyle))
-                .foregroundColor(textColor)
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-// MARK: - Quick Actions Button
-
-struct QuickActionsButton: View {
-    @Binding var showQuickActions: Bool
-    @Binding var isPulsing: Bool
-    let themeColors: ThemeColors
-    @State private var isHovered = false
-
-    private static let springAnimation = Animation.spring(response: 0.3, dampingFraction: 0.7)
-    private static let pulseAnimation = Animation.easeInOut(duration: 2.0).repeatForever(autoreverses: true)
-    private static let pulseDuration: TimeInterval = 10
-
-    var body: some View {
-        Button(action: handleTap) {
-            ZStack(alignment: .topTrailing) {
-                iconView
-                indicatorDot
-            }
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.15)) {
-                isHovered = hovering
-            }
-        }
-        .help("Quick Actions")
-        .onAppear(perform: startPulsing)
-    }
-
-    private var iconView: some View {
-        Image(systemName: showQuickActions ? "xmark" : "plus")
-            .font(.system(size: 16, weight: .semibold))
-            .foregroundColor(showQuickActions ? themeColors.textOnAccent : (isHovered ? themeColors.primaryAccent : themeColors.secondaryText))
-            .frame(width: 36, height: 36)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(showQuickActions ? AnyShapeStyle(themeColors.accentGradient) : AnyShapeStyle(themeColors.glassBackground))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(
-                                showQuickActions ? Color.clear : (isPulsing || isHovered ? themeColors.primaryAccent.opacity(0.4) : themeColors.borderColor),
-                                lineWidth: 1
-                            )
-                    )
-                    .shadow(color: showQuickActions ? themeColors.primaryAccent.opacity(0.4) : .clear, radius: 8, x: 0, y: 2)
-            )
-            .scaleEffect(isPulsing || isHovered ? 1.05 : 1.0)
-            .rotationEffect(.degrees(showQuickActions ? 45 : 0))
-            .animation(Self.springAnimation, value: showQuickActions)
-    }
-
-    @ViewBuilder
-    private var indicatorDot: some View {
-        if !showQuickActions && isPulsing {
-            Circle()
-                .fill(themeColors.primaryAccent)
-                .frame(width: 8, height: 8)
-                .overlay(
-                    Circle()
-                        .stroke(themeColors.mainBackground, lineWidth: 2)
-                )
-                .offset(x: 2, y: -2)
-        }
-    }
-
-    private func handleTap() {
-        withAnimation(Self.springAnimation) {
-            showQuickActions.toggle()
-        }
-        isPulsing = false
-    }
-
-    private func startPulsing() {
-        withAnimation(Self.pulseAnimation) {
-            isPulsing = true
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.pulseDuration) {
-            withAnimation { isPulsing = false }
-        }
     }
 }

@@ -19,12 +19,6 @@ enum FontManager {
         for fontName in fontNames {
             registerFont(filename: fontName)
         }
-
-        #if DEBUG
-        // Print all registered fonts to verify they loaded
-        print("📝 Registered custom fonts:")
-        listAvailableFonts()
-        #endif
     }
 
     /// Cached resource bundle to avoid repeated lookups
@@ -106,32 +100,13 @@ enum FontManager {
             if let error = error?.takeRetainedValue() {
                 // kCTFontManagerErrorAlreadyRegistered = 105
                 let nsError = error as Error as NSError
+                #if DEBUG
                 if nsError.code != 105 {
-                    print("⚠️ Failed to register font \(filename): \(error)")
+                    print("Failed to register font \(filename): \(error)")
                 }
+                #endif
             }
             return
-        }
-
-        print("✅ Registered font: \(filename)")
-    }
-
-    /// List all available fonts (debug helper)
-    private static func listAvailableFonts() {
-        let available = NSFontManager.shared.availableFonts
-        let poppins = available.filter { $0.contains("Poppins") }
-        let crimson = available.filter { $0.contains("Crimson") }
-
-        if !poppins.isEmpty {
-            print("   Poppins variants:", poppins.joined(separator: ", "))
-        } else {
-            print("   ⚠️ No Poppins fonts found in system!")
-        }
-        
-        if !crimson.isEmpty {
-            print("   Crimson variants:", crimson.joined(separator: ", "))
-        } else {
-            print("   ⚠️ No Crimson fonts found in system!")
         }
     }
 }

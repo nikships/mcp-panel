@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import os
-import sys
+import shutil
 from PIL import Image
 import subprocess
 
@@ -40,7 +40,7 @@ def create_iconset(input_image, output_name):
     subprocess.run(["iconutil", "-c", "icns", iconset_dir, "-o", f"{output_name}.icns"])
 
     # Clean up iconset directory
-    subprocess.run(["rm", "-rf", iconset_dir])
+    shutil.rmtree(iconset_dir)
 
     print(f"✓ Created {output_name}.icns\n")
 

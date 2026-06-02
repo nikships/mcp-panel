@@ -168,9 +168,6 @@ struct BrowseRegistryView: View {
             servers = try await registryService.fetchServers()
         } catch {
             errorMessage = "Failed to load servers: \(error.localizedDescription)"
-            #if DEBUG
-            print("BrowseRegistryView: Error loading servers - \(error)")
-            #endif
         }
     }
 }

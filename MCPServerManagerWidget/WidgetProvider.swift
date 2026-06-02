@@ -10,6 +10,7 @@ struct WidgetProvider: TimelineProvider {
     private let widgetServersKey = WidgetConstants.widgetServersKey
     private let currentThemeKey = WidgetConstants.currentThemeKey
     private let widgetActiveConfigKey = WidgetConstants.widgetActiveConfigKey
+    private let activeConfigIndexKey = WidgetConstants.activeConfigIndexKey
 
     func placeholder(in context: Context) -> ServerEntry {
         ServerEntry(
@@ -44,12 +45,11 @@ struct WidgetProvider: TimelineProvider {
         let themeName = loadTheme()
 
         let filteredServers = allServers
-            .filter { $0.inConfigs.count > activeConfig && $0.inConfigs[activeConfig] }
             .map { server in
                 WidgetServerModel(
                     id: server.id,
                     name: server.name,
-                    isEnabled: server.isEnabled,
+                    isEnabled: server.inConfigs.count > activeConfig ? server.inConfigs[activeConfig] : false,
                     inConfigs: server.inConfigs
                 )
             }
@@ -65,7 +65,10 @@ struct WidgetProvider: TimelineProvider {
 
     private func loadActiveConfig() -> Int {
         guard let defaults = UserDefaults(suiteName: suiteName) else { return 0 }
-        return defaults.integer(forKey: widgetActiveConfigKey)
+        if defaults.object(forKey: widgetActiveConfigKey) != nil {
+            return max(0, min(defaults.integer(forKey: widgetActiveConfigKey), 1))
+        }
+        return max(0, min(defaults.integer(forKey: activeConfigIndexKey), 1))
     }
 
     private func loadTheme() -> String {
@@ -108,4 +111,3 @@ struct SharedWidgetServer: Codable, Identifiable {
         inConfigs = Array(decoded.prefix(2))
     }
 }
-

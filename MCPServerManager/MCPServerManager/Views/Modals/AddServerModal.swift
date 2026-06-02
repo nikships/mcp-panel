@@ -266,20 +266,21 @@ struct AddServerModal: View {
     private func addServers() {
         let images = registryImages.isEmpty ? nil : registryImages
 
-        guard let result = viewModel.addServers(from: jsonText, registryImages: images) else {
+        switch viewModel.addServers(from: jsonText, registryImages: images) {
+        case .success:
             isPresented = false
             resetForm()
-            return
+        case .validationFailed(let invalidServers, let serverDict):
+            invalidServerDetails = invalidServers
+                .map { "\($0.key): \($0.value)" }
+                .joined(separator: "\n")
+            pendingSaveJSON = jsonText
+            pendingServerDict = serverDict
+            pendingRegistryImages = images
+            showForceAlert = true
+        case .failed:
+            errorMessage = "Could not add servers. Review the JSON and try again."
         }
-
-        // Validation failed - show force save alert
-        invalidServerDetails = result.invalidServers
-            .map { "\($0.key): \($0.value)" }
-            .joined(separator: "\n")
-        pendingSaveJSON = jsonText
-        pendingServerDict = result.serverDict
-        pendingRegistryImages = images
-        showForceAlert = true
     }
 
     private func forceSave() {

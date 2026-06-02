@@ -77,49 +77,19 @@ struct RawJSONView: View {
 
             // Action buttons
             HStack(spacing: 12) {
-                Button(action: formatJSON) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "text.alignleft")
-                        Text("Format JSON")
-                    }
-                    .font(DesignTokens.Typography.label)
-                    .foregroundColor(themeColors.primaryText)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(themeColors.glassBackground)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(themeColors.borderColor, lineWidth: 1)
-                            )
-                    )
-                }
-                .buttonStyle(.plain)
+                RawJSONSecondaryButton(
+                    icon: "text.alignleft",
+                    title: "Format JSON",
+                    themeColors: themeColors,
+                    action: formatJSON
+                )
 
-                Button(action: {
-                    jsonText = serversToJSON()
-                    isDirty = false
-                    errorMessage = ""
-                }) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "arrow.counterclockwise")
-                        Text("Reset")
-                    }
-                    .font(DesignTokens.Typography.label)
-                    .foregroundColor(themeColors.primaryText)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(themeColors.glassBackground)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(themeColors.borderColor, lineWidth: 1)
-                            )
-                    )
-                }
-                .buttonStyle(.plain)
+                RawJSONSecondaryButton(
+                    icon: "arrow.counterclockwise",
+                    title: "Reset",
+                    themeColors: themeColors,
+                    action: resetJSON
+                )
 
                 Spacer()
 
@@ -147,22 +117,13 @@ struct RawJSONView: View {
             jsonText = serversToJSON()
         }
         .onChange(of: viewModel.filterMode) { _ in
-            if !isDirty {
-                jsonText = serversToJSON()
-            }
+            refreshJSONIfClean()
         }
         .onChange(of: viewModel.searchText) { _ in
-            if !isDirty {
-                jsonText = serversToJSON()
-            }
+            refreshJSONIfClean()
         }
         .alert("Invalid Server Configuration", isPresented: $showForceAlert) {
-            Button("Cancel", role: .cancel) {
-                showForceAlert = false
-                pendingSaveJSON = ""
-                pendingServerDict = nil
-                invalidServerDetails = ""
-            }
+            Button("Cancel", role: .cancel, action: clearPendingSave)
             Button("Force Save") {
                 forceSave()
             }
@@ -172,21 +133,7 @@ struct RawJSONView: View {
     }
 
     private func serversToJSON() -> String {
-        // Use filteredServers to respect search and filter mode
-        let filteredServers = viewModel.filteredServers
-            .reduce(into: [String: ServerConfig]()) { result, server in
-                result[server.name] = server.config
-            }
-
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-
-        guard let data = try? encoder.encode(filteredServers),
-              let string = String(data: data, encoding: .utf8) else {
-            return "{}"
-        }
-
-        return string
+        viewModel.activeConfigServersJSON()
     }
 
     private func formatJSON() {
@@ -202,6 +149,18 @@ struct RawJSONView: View {
         }
         jsonText = result
         errorMessage = ""
+    }
+
+    private func resetJSON() {
+        jsonText = serversToJSON()
+        isDirty = false
+        errorMessage = ""
+    }
+
+    private func refreshJSONIfClean() {
+        if !isDirty {
+            jsonText = serversToJSON()
+        }
     }
 
     private func applyChanges() {
@@ -238,13 +197,46 @@ struct RawJSONView: View {
             }
             isDirty = false
             errorMessage = ""
-            showForceAlert = false
-            pendingSaveJSON = ""
-            pendingServerDict = nil
-            invalidServerDetails = ""
+            clearPendingSave()
         } catch {
             errorMessage = "Failed to parse JSON: \(error.localizedDescription)"
             showForceAlert = false
         }
+    }
+
+    private func clearPendingSave() {
+        showForceAlert = false
+        pendingSaveJSON = ""
+        pendingServerDict = nil
+        invalidServerDetails = ""
+    }
+}
+
+private struct RawJSONSecondaryButton: View {
+    let icon: String
+    let title: String
+    let themeColors: ThemeColors
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                Text(title)
+            }
+            .font(DesignTokens.Typography.label)
+            .foregroundColor(themeColors.primaryText)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(themeColors.glassBackground)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(themeColors.borderColor, lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
     }
 }

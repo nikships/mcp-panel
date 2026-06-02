@@ -3,12 +3,16 @@ import Foundation
 class ConfigManager {
     static let shared = ConfigManager()
 
+    struct ConfigFile: Codable {
+        var mcpServers: [String: ServerConfig]
+    }
+
     private init() {}
 
     // MARK: - Path Resolution
 
     func expandPath(_ path: String) -> URL {
-        let expanded = NSString(string: path).expandingTildeInPath
+        let expanded = NSString(string: path.trimmingCharacters(in: .whitespacesAndNewlines)).expandingTildeInPath
         return URL(fileURLWithPath: expanded)
     }
 
@@ -17,9 +21,10 @@ class ConfigManager {
     }
 
     private func withConfigAccess<T>(_ path: String, _ operation: (URL) throws -> T) throws -> T {
-        let url = resolveURL(for: path)
+        let trimmedPath = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        let url = resolveURL(for: trimmedPath)
 
-        if BookmarkManager.shared.hasBookmark(for: path) {
+        if BookmarkManager.shared.hasBookmark(for: trimmedPath) {
             return try url.withSecurityScopedAccess(operation)
         }
 
@@ -42,11 +47,9 @@ class ConfigManager {
     private func parseServers(from data: Data) throws -> [String: ServerConfig] {
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
 
-        guard let mcpServers = json["mcpServers"] as? [String: Any] else {
-            return [:]
-        }
+        let serverDictionary = (json["mcpServers"] as? [String: Any]) ?? json
 
-        return mcpServers.compactMapValues { value in
+        return serverDictionary.compactMapValues { value in
             guard let serverData = try? JSONSerialization.data(withJSONObject: value),
                   let config = try? JSONDecoder().decode(ServerConfig.self, from: serverData) else {
                 return nil
@@ -132,7 +135,7 @@ class ConfigManager {
 
     // MARK: - Bookmarks
 
-    func storeBookmarkForConfigFile(url: URL, path: String) throws {
+    func storeBookmarkForConfigFile(url: URL, path _: String) throws {
         let didStartAccess = url.startAccessingSecurityScopedResource()
         defer {
             if didStartAccess {
@@ -141,7 +144,6 @@ class ConfigManager {
         }
 
         try BookmarkManager.shared.storeBookmark(for: url)
-        print("Stored bookmark for config: \(path)")
     }
 
     // MARK: - Server Operations
@@ -181,7 +183,7 @@ class ConfigManager {
             .filter { $0.inConfigs[safe: configIndex] ?? false }
             .reduce(into: [String: ServerConfig]()) { $0[$1.name] = $1.config }
 
-        return encodeToJSON(filteredServers) ?? "{}"
+        return encodeToJSON(ConfigFile(mcpServers: filteredServers)) ?? "{\n  \"mcpServers\" : {}\n}"
     }
 
     private func encodeToJSON<T: Encodable>(_ value: T) -> String? {

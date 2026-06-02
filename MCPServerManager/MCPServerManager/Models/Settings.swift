@@ -1,10 +1,21 @@
 import Foundation
 
 struct AppSettings: Codable, Equatable {
+    private static let defaultConfigPaths = ["~/.claude.json", "~/.settings.json"]
+
     var confirmDelete: Bool
-    var configPaths: [String]
+    var configPaths: [String] {
+        didSet {
+            configPaths = Self.normalizedConfigPaths(configPaths)
+            activeConfigIndex = Self.normalizedActiveConfigIndex(activeConfigIndex, configPathCount: configPaths.count)
+        }
+    }
     var droidConfigPath: String?
-    var activeConfigIndex: Int
+    var activeConfigIndex: Int {
+        didSet {
+            activeConfigIndex = Self.normalizedActiveConfigIndex(activeConfigIndex, configPathCount: configPaths.count)
+        }
+    }
     var blurJSONPreviews: Bool
     var overrideTheme: String? // nil = auto-detect, otherwise use the theme name
 
@@ -15,10 +26,7 @@ struct AppSettings: Codable, Equatable {
 
     static let `default` = AppSettings(
         confirmDelete: true,
-        configPaths: [
-            "~/.claude.json",
-            "~/.settings.json"
-        ],
+        configPaths: defaultConfigPaths,
         droidConfigPath: nil,
         activeConfigIndex: 0,
         blurJSONPreviews: false,
@@ -29,7 +37,7 @@ struct AppSettings: Codable, Equatable {
     )
 
     init(confirmDelete: Bool = true,
-         configPaths: [String] = ["~/.claude.json", "~/.settings.json"],
+         configPaths: [String] = defaultConfigPaths,
          droidConfigPath: String? = nil,
          activeConfigIndex: Int = 0,
          blurJSONPreviews: Bool = false,
@@ -38,9 +46,9 @@ struct AppSettings: Codable, Equatable {
          hideDockIconInMenuBarMode: Bool = false,
          launchAtLogin: Bool = false) {
         self.confirmDelete = confirmDelete
-        self.configPaths = configPaths
+        self.configPaths = Self.normalizedConfigPaths(configPaths)
         self.droidConfigPath = droidConfigPath
-        self.activeConfigIndex = max(0, min(activeConfigIndex, 1)) // Ensure 0 or 1
+        self.activeConfigIndex = Self.normalizedActiveConfigIndex(activeConfigIndex, configPathCount: self.configPaths.count)
         self.blurJSONPreviews = blurJSONPreviews
         self.overrideTheme = overrideTheme
         self.menuBarModeEnabled = menuBarModeEnabled
@@ -56,12 +64,12 @@ struct AppSettings: Codable, Equatable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        confirmDelete = try container.decode(Bool.self, forKey: .confirmDelete)
-        configPaths = try container.decode([String].self, forKey: .configPaths)
-        droidConfigPath = try container.decodeIfPresent(String.self, forKey: .droidConfigPath)
-        let decodedIndex = try container.decode(Int.self, forKey: .activeConfigIndex)
-        activeConfigIndex = max(0, min(decodedIndex, 1))
-        blurJSONPreviews = try container.decode(Bool.self, forKey: .blurJSONPreviews)
+        confirmDelete = try container.decodeIfPresent(Bool.self, forKey: .confirmDelete) ?? true
+        configPaths = Self.normalizedConfigPaths(try container.decodeIfPresent([String].self, forKey: .configPaths))
+        droidConfigPath = try container.decodeIfPresent(String.self, forKey: .droidConfigPath)?.trimmedNilIfEmpty
+        let decodedIndex = try container.decodeIfPresent(Int.self, forKey: .activeConfigIndex) ?? 0
+        activeConfigIndex = Self.normalizedActiveConfigIndex(decodedIndex, configPathCount: configPaths.count)
+        blurJSONPreviews = try container.decodeIfPresent(Bool.self, forKey: .blurJSONPreviews) ?? false
         overrideTheme = try container.decodeIfPresent(String.self, forKey: .overrideTheme)
         // New settings with defaults for backward compatibility
         menuBarModeEnabled = try container.decodeIfPresent(Bool.self, forKey: .menuBarModeEnabled) ?? false
@@ -70,7 +78,7 @@ struct AppSettings: Codable, Equatable {
     }
 
     var activeConfigPath: String {
-        configPaths[safe: activeConfigIndex] ?? configPaths[0]
+        configPaths[safe: activeConfigIndex] ?? config1Path
     }
 
     var config1Path: String {
@@ -79,6 +87,30 @@ struct AppSettings: Codable, Equatable {
 
     var config2Path: String {
         configPaths[safe: 1] ?? "~/.settings.json"
+    }
+
+    private static func normalizedConfigPaths(_ paths: [String]?) -> [String] {
+        var normalized = (paths ?? [])
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        while normalized.count < defaultConfigPaths.count {
+            normalized.append(defaultConfigPaths[normalized.count])
+        }
+
+        return normalized
+    }
+
+    private static func normalizedActiveConfigIndex(_ index: Int, configPathCount: Int) -> Int {
+        guard configPathCount > 0 else { return 0 }
+        return max(0, min(index, configPathCount - 1))
+    }
+}
+
+private extension String {
+    var trimmedNilIfEmpty: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }
 
