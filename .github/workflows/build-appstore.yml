@@ -175,6 +175,24 @@ jobs:
         # Copy app icon
         cp MCPServerManager/icons/AppIcon.icns "$APP_PATH/Contents/Resources/AppIcon.icns"
 
+        # Ensure custom fonts are bundled regardless of how xcodebuild laid out
+        # resources. FontManager scans the bundle recursively at runtime, so as long
+        # as the .ttf files exist somewhere under Contents/Resources they get loaded.
+        # This matches the layout used by the local SPM build (build-appstore.sh).
+        echo "🔤 Embedding custom fonts..."
+        FONT_DEST="$APP_PATH/Contents/Resources/Fonts"
+        mkdir -p "$FONT_DEST"
+        cp MCPServerManager/MCPServerManager/Resources/Fonts/*.ttf "$FONT_DEST/"
+
+        # Fail the build if no fonts made it into the bundle (prevents silent
+        # system-font fallback that previously differed between build paths).
+        FONT_COUNT=$(find "$APP_PATH/Contents/Resources" -iname '*.ttf' | wc -l | tr -d ' ')
+        echo "   Fonts in bundle: $FONT_COUNT"
+        if [ "$FONT_COUNT" -eq 0 ]; then
+          echo "❌ ERROR: No fonts were bundled into the app!"
+          exit 1
+        fi
+
         # Copy provisioning profiles
         cp embedded.provisionprofile "$APP_PATH/Contents/embedded.provisionprofile"
 

@@ -24,17 +24,8 @@
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright © 2026 Nikhil Anand. All rights reserved.</string>
-	<key>UIAppFonts</key>
-	<array>
-		<string>Resources/Fonts/Poppins-Regular.ttf</string>
-		<string>Resources/Fonts/Poppins-Medium.ttf</string>
-		<string>Resources/Fonts/Poppins-SemiBold.ttf</string>
-		<string>Resources/Fonts/Poppins-Bold.ttf</string>
-		<string>Resources/Fonts/CrimsonPro-Regular.ttf</string>
-		<string>Resources/Fonts/CrimsonPro-Medium.ttf</string>
-		<string>Resources/Fonts/CrimsonPro-SemiBold.ttf</string>
-		<string>Resources/Fonts/CrimsonPro-Bold.ttf</string>
-	</array>
+	<key>ATSApplicationFontsPath</key>
+	<string>Fonts</string>
 	<key>SUFeedURL</key>
 	<string>https://github.com/anand-92/mcp-panel/releases/download/latest/appcast.xml</string>
 	<key>SUPublicEDKey</key>

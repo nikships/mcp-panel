@@ -24,6 +24,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Claude Logo in Header** - The active-config badge now shows the Claude logo (tinted to the theme accent) for a `.claude.json` config instead of the "Claude Code" text label.
 - **Internal Cleanup** - Simplified source across models, services, view models, and views (deduplicated JSON encoding, flattened redundant conditionals and availability guards) with no behavior change.
 
+### Fixed
+- **Consistent Custom Fonts Across Build Paths** - Poppins / Crimson Pro now register reliably whether the app is built via the GitHub Actions workflow (xcodebuild) or locally for Transporter (`swift build`). `FontManager` now discovers fonts by recursively scanning the bundle instead of probing fixed paths, the Info.plist uses the correct macOS `ATSApplicationFontsPath` key (the old iOS-only `UIAppFonts` key was ignored), and both build paths embed fonts in `Contents/Resources/Fonts`. Previously some App Store builds silently fell back to the system font.
+
 ### Removed
 - **macOS Widget** - Removed the WidgetKit extension entirely (widget target, App Intents toggle, "Show in Widget" card button, and shared-storage sync). The app and its menu bar integration remain. The App Groups entitlement (`group.com.anand-92.mcp-panel`) is no longer needed; security-scoped bookmarks now live in standard app storage.
 - **Gemini CLI Support** - Removed the Gemini CLI config, theme, config switcher, and related menu-bar UI. The app now focuses on a single Claude Code config.

@@ -69,6 +69,13 @@ cp MCPServerManager/.build/release/MCPServerManager "$APP_PATH/Contents/MacOS/"
 echo "📂 Copying resource bundle..."
 cp -r MCPServerManager/.build/release/MCPServerManager_MCPServerManager.bundle "$APP_PATH/Contents/Resources/"
 
+# Also copy fonts to Contents/Resources/Fonts so ATSApplicationFontsPath="Fonts"
+# auto-registers them, matching the GitHub Actions build layout. FontManager
+# scans recursively too, so this is belt-and-suspenders.
+echo "🔤 Embedding custom fonts..."
+mkdir -p "$APP_PATH/Contents/Resources/Fonts"
+cp MCPServerManager/MCPServerManager/Resources/Fonts/*.ttf "$APP_PATH/Contents/Resources/Fonts/"
+
 # Copy app icon
 echo "🎨 Adding app icon..."
 cp MCPServerManager/icons/AppIcon.icns "$APP_PATH/Contents/Resources/AppIcon.icns"
