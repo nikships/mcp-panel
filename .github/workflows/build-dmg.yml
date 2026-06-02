@@ -71,7 +71,7 @@ jobs:
         echo "Imported certificates:"
         security find-identity -v -p codesigning
 
-    - name: Generate Xcode project and build with widget
+    - name: Generate Xcode project and build
       env:
         APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       run: |
@@ -89,30 +89,11 @@ jobs:
             <true/>
             <key>com.apple.security.files.user-selected.read-write</key>
             <true/>
-            <key>com.apple.security.application-groups</key>
-            <array>
-                <string>group.com.anand-92.mcp-panel</string>
-            </array>
         </dict>
         </plist>
         ENTITLEMENTS
 
-        cat > MCPServerManagerWidget/MCPServerManagerWidget.entitlements << 'ENTITLEMENTS'
-        <?xml version="1.0" encoding="UTF-8"?>
-        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-        <plist version="1.0">
-        <dict>
-            <key>com.apple.security.app-sandbox</key>
-            <true/>
-            <key>com.apple.security.application-groups</key>
-            <array>
-                <string>group.com.anand-92.mcp-panel</string>
-            </array>
-        </dict>
-        </plist>
-        ENTITLEMENTS
-
-        # Build with xcodebuild (includes widget extension)
+        # Build with xcodebuild
         xcodebuild -project MCPServerManager.xcodeproj \
           -scheme MCPServerManager \
           -configuration Release \
@@ -120,19 +101,11 @@ jobs:
           CODE_SIGNING_ALLOWED=NO \
           build
 
-        echo "✅ Build completed with widget extension"
+        echo "✅ Build completed"
 
         # Copy built app to expected location
         mkdir -p MCPServerManager/build
         cp -R build/Build/Products/Release/MCPServerManager.app MCPServerManager/build/MCP-Server-Manager.app
-
-        # Verify widget is embedded
-        if [ -d "MCPServerManager/build/MCP-Server-Manager.app/Contents/PlugIns/MCPServerManagerWidget.appex" ]; then
-          echo "✅ Widget extension embedded successfully"
-        else
-          echo "⚠️ Widget extension not found in app bundle"
-          ls -la MCPServerManager/build/MCP-Server-Manager.app/Contents/PlugIns/ || echo "No PlugIns directory"
-        fi
 
     - name: Add Sparkle framework and update Info.plist
       working-directory: MCPServerManager
@@ -181,16 +154,6 @@ jobs:
         fi
 
         echo "Signing with identity: $IDENTITY"
-
-        # Sign the widget extension first
-        if [ -d "build/MCP-Server-Manager.app/Contents/PlugIns/MCPServerManagerWidget.appex" ]; then
-          codesign --force --sign "$IDENTITY" \
-            --options runtime \
-            --entitlements ../MCPServerManagerWidget/MCPServerManagerWidget.entitlements \
-            --timestamp \
-            build/MCP-Server-Manager.app/Contents/PlugIns/MCPServerManagerWidget.appex
-          echo "✅ Widget extension signed"
-        fi
 
         # Sign Sparkle framework components (inside-out)
         SPARKLE_PATH="build/MCP-Server-Manager.app/Contents/Frameworks/Sparkle.framework/Versions/B"
@@ -458,8 +421,6 @@ jobs:
         find . -name "*.dmg" -type f || echo "No DMG files found"
         find . -name "*.app" -type d || echo "No APP bundles found"
         find . -name "appcast.xml" -type f || echo "No appcast.xml found"
-        echo "Widget extension check:"
-        ls -la MCPServerManager/build/MCP-Server-Manager.app/Contents/PlugIns/ 2>/dev/null || echo "No PlugIns"
 
     - name: Upload DMG artifact
       uses: actions/upload-artifact@v4

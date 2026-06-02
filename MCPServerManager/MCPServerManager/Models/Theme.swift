@@ -5,7 +5,6 @@ import SwiftUI
 enum AppTheme: String, CaseIterable {
     case auto = "Auto (Detect from Config)"
     case claudeCode = "Claude Code"
-    case geminiCLI = "Gemini CLI"
     case `default` = "Default (Cyberpunk)"
     case nord = "Nord"
     case dracula = "Dracula"
@@ -25,8 +24,6 @@ enum AppTheme: String, CaseIterable {
 
         if lowercased.contains("claude") {
             return .claudeCode
-        } else if lowercased.contains("settings") || lowercased.contains("gemini") {
-            return .geminiCLI
         } else {
             return .default
         }
@@ -107,54 +104,6 @@ struct ThemeColors {
             colors: [
                 Color(hex: "#d87757"),
                 Color(hex: "#faf8f1")
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-    )
-
-    static let geminiCLI = ThemeColors(
-        // Ayu Dark - pitch black background
-        mainBackground: Color(hex: "#0b0e14"),
-        sidebarBackground: Color(hex: "#0F1419"),
-        panelBackground: Color(hex: "#0b0e14"),
-        glassBackground: Color.white.opacity(0.03),
-        glassBorder: Color(hex: "#3D4149"),
-
-        // Text colors - Ayu Dark palette
-        primaryText: Color(hex: "#aeaca6"),
-        secondaryText: Color(hex: "#aeaca6").opacity(0.8),
-        mutedText: Color(hex: "#646A71"),
-        textOnAccent: Color(hex: "#0b0e14"),
-
-        // Accent colors - Ayu Dark vibrant palette
-        primaryAccent: Color(hex: "#39BAE6"), // Accent Blue
-        secondaryAccent: Color(hex: "#59C2FF"), // Light Blue
-        successColor: Color(hex: "#AAD94C"), // Accent Green
-        errorColor: Color(hex: "#F26D78"), // Accent Red
-        warningColor: Color(hex: "#FFB454"), // Accent Yellow
-
-        // UI elements
-        borderColor: Color(hex: "#3D4149"),
-        selectionColor: Color(hex: "#39BAE6").opacity(0.3),
-        lineHighlight: Color(hex: "#0F1419"),
-
-        // Gradients - vibrant Ayu Dark accents
-        backgroundGradient: LinearGradient(
-            colors: [
-                Color(hex: "#0b0e14"),
-                Color(hex: "#0F1419"),
-                Color(hex: "#0b0e14")
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        ),
-        accentGradient: LinearGradient(
-            colors: [
-                Color(hex: "#59C2FF"), // Light Blue
-                Color(hex: "#39BAE6"), // Accent Blue
-                Color(hex: "#D2A6FF"), // Accent Purple
-                Color(hex: "#95E6CB")  // Accent Cyan
             ],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
@@ -640,8 +589,6 @@ struct ThemeColors {
             return .default // Will be overridden by detection logic
         case .claudeCode:
             return .claudeCode
-        case .geminiCLI:
-            return .geminiCLI
         case .default:
             return .default
         case .nord:

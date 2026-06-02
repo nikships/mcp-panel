@@ -49,7 +49,7 @@ struct MCPServerManagerApp: App {
 
             // Window menu to reopen the main window (Apple Review requirement)
             CommandGroup(after: .windowArrangement) {
-                Button("MCP Server Manager") {
+                Button("MCP Panel") {
                     // Bring existing window to front or create new one
                     if let window = NSApp.windows.first(where: { $0.title.isEmpty || $0.title == "MCP Server Manager" }) {
                         window.makeKeyAndOrderFront(nil)
@@ -66,29 +66,18 @@ struct MCPServerManagerApp: App {
 
 class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     var menuBarController: MenuBarController?
-    private var widgetNotificationObserver: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Register custom fonts (Poppins & Crimson Pro)
         FontManager.registerFonts()
 
-        // Always run as menu bar app
-        NSApp.setActivationPolicy(.accessory)
+        // Run as a normal app: show in the Dock (the menu bar icon is still added separately).
+        NSApp.setActivationPolicy(.regular)
 
         NSApp.activate(ignoringOtherApps: true)
 
         // Sync launch at login with saved setting
         syncLaunchAtLogin()
-
-        // Setup widget notification listener
-        setupWidgetNotificationListener()
-    }
-
-    func applicationWillTerminate(_ notification: Notification) {
-        // Remove notification observer
-        if let observer = widgetNotificationObserver {
-            DistributedNotificationCenter.default().removeObserver(observer)
-        }
     }
 
     // Keep app alive when window closed - always keep running for menu bar
@@ -122,7 +111,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         }
         menuBarController?.setup(with: viewModel)
         menuBarController?.showMenuBarIcon()
-        NSApp.setActivationPolicy(.accessory) // Always menu bar only
+        NSApp.setActivationPolicy(.regular) // Normal app: keep the Dock icon visible
     }
 
     // MARK: - Launch at Login
@@ -185,62 +174,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             #endif
             updateLaunchAtLogin(enabled: savedSetting)
         }
-    }
-
-    // MARK: - Widget Notification Handling
-
-    private func setupWidgetNotificationListener() {
-        widgetNotificationObserver = DistributedNotificationCenter.default().addObserver(
-            forName: NSNotification.Name(SharedDataManager.serverToggledNotificationName),
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            self?.handleWidgetServerToggle(notification)
-        }
-    }
-
-    private func handleWidgetServerToggle(_ notification: Notification) {
-        // Read pending toggle from shared UserDefaults (sandboxed apps can't receive userInfo)
-        guard let defaults = UserDefaults(suiteName: "group.com.anand-92.mcp-panel"),
-              let pendingToggle = defaults.dictionary(forKey: "pendingServerToggle"),
-              let serverIDString = pendingToggle["serverID"] as? String,
-              let serverID = UUID(uuidString: serverIDString),
-              let newState = pendingToggle["newState"] as? Bool else {
-            #if DEBUG
-            print("Widget toggle: No pending toggle found or invalid data")
-            #endif
-            return
-        }
-        let configIndex = max(0, min((pendingToggle["configIndex"] as? Int) ?? defaults.integer(forKey: "widgetActiveConfigIndex"), 1))
-
-        // Clear the pending toggle
-        defaults.removeObject(forKey: "pendingServerToggle")
-        defaults.synchronize()
-
-        #if DEBUG
-        print("Widget toggled server: \(serverID), new state: \(newState)")
-        #endif
-
-        let appActiveConfigIndex = max(0, min(defaults.integer(forKey: "activeConfigIndex"), 1))
-        guard configIndex == appActiveConfigIndex else {
-            #if DEBUG
-            print("Widget toggle: Ignoring local app toggle for config \(configIndex); app is on config \(appActiveConfigIndex)")
-            #endif
-            SharedDataManager.shared.reloadWidgetTimeline()
-            return
-        }
-
-        // The actual toggle will be handled by the ServerViewModel
-        // which listens to this notification
-        NotificationCenter.default.post(
-            name: NSNotification.Name("WidgetServerToggled"),
-            object: nil,
-            userInfo: [
-                "serverID": serverID,
-                "newState": newState,
-                "configIndex": configIndex
-            ]
-        )
     }
 
     // Handle reopening when user clicks dock icon with no windows open

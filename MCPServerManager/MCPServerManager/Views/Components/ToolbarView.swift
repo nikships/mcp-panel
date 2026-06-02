@@ -174,17 +174,17 @@ struct ToolbarView: View {
     }
 
     private func filterCount(for mode: FilterMode) -> Int {
-        let activeIndex = viewModel.settings.activeConfigIndex
         switch mode {
         case .all:
             return viewModel.servers.count
         case .active:
-            return viewModel.servers.filter { $0.inConfigs[safe: activeIndex] ?? false }.count
+            return viewModel.servers.filter { $0.enabled }.count
         case .disabled:
-            return viewModel.servers.filter { !($0.inConfigs[safe: activeIndex] ?? false) }.count
+            return viewModel.servers.filter { !$0.enabled }.count
         case .recent:
-            // Recent count - servers modified in last 24 hours (simplified)
-            return 0
+            // Servers modified in the last 24 hours.
+            let cutoff = Date().addingTimeInterval(-24 * 60 * 60)
+            return viewModel.servers.filter { $0.updatedAt >= cutoff }.count
         }
     }
 
@@ -233,9 +233,7 @@ struct ToolbarView: View {
 
     @ViewBuilder
     private func toggleAllButton() -> some View {
-        let allEnabled = viewModel.servers.allSatisfy {
-            $0.inConfigs[safe: viewModel.settings.activeConfigIndex] ?? false
-        }
+        let allEnabled = viewModel.servers.allSatisfy { $0.enabled }
 
         Button {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
@@ -285,7 +283,7 @@ struct ToolbarView: View {
     private func refreshButton() -> some View {
         Button {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
-                viewModel.syncToConfigs()
+                viewModel.loadServers()
             }
         } label: {
             Image(systemName: "arrow.clockwise")
@@ -294,7 +292,8 @@ struct ToolbarView: View {
         }
         .buttonStyle(.plain)
         .keyboardShortcut("r", modifiers: .command)
-        .help("Refresh (⌘R)")
+        .help("Reload from disk (⌘R)")
+        .accessibilityLabel("Reload from disk")
     }
 }
 
@@ -348,13 +347,5 @@ private struct ToolbarIconButtonStyle: ViewModifier {
                     isHovered = hovering
                 }
             }
-    }
-}
-
-// MARK: - Color Extension for Gradient Conversion
-
-private extension Color {
-    var asGradient: LinearGradient {
-        LinearGradient(colors: [self], startPoint: .leading, endPoint: .trailing)
     }
 }

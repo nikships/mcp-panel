@@ -3,9 +3,8 @@ import SwiftUI
 // MARK: - App Constants
 
 enum AppConstants {
-    static let appName = "MCP Server Manager"
+    static let appName = "MCP Panel"
     static let defaultConfigPath = "~/.claude.json"
-    static let defaultSettingsPath = "~/.settings.json"
     static let mcpRegistryURL = "https://lobehub.com/mcp"
 }
 

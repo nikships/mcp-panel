@@ -27,11 +27,5 @@
     <!-- Network client - if app needs internet (MCP servers might) -->
     <key>com.apple.security.network.client</key>
     <true/>
-
-    <!-- App Groups - required for widget to receive server data from main app -->
-    <key>com.apple.security.application-groups</key>
-    <array>
-        <string>group.com.anand-92.mcp-panel</string>
-    </array>
 </dict>
 </plist>

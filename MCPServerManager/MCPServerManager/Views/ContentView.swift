@@ -45,9 +45,6 @@ struct ContentView: View {
         .onAppear {
             appDelegate.setupMenuBar(with: viewModel)
         }
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("WidgetServerToggled"))) { notification in
-            handleWidgetServerToggle(notification)
-        }
         .alert("Invalid Imported Servers", isPresented: $showImportForceAlert) {
             Button("Cancel", role: .cancel) {
                 clearPendingImport()
@@ -57,25 +54,6 @@ struct ContentView: View {
             }
         } message: {
             Text("The imported file contains validation errors:\n\n\(importInvalidServerDetails)\n\nDo you want to force import anyway?")
-        }
-    }
-
-    // MARK: - Widget Server Toggle Handler
-
-    private func handleWidgetServerToggle(_ notification: Notification) {
-        guard let userInfo = notification.userInfo,
-              let serverID = userInfo["serverID"] as? UUID,
-              let newState = userInfo["newState"] as? Bool else {
-            return
-        }
-        let configIndex = userInfo["configIndex"] as? Int ?? viewModel.settings.activeConfigIndex
-
-        // Find and toggle the server
-        if let server = viewModel.servers.first(where: { $0.id == serverID }) {
-            let currentState = server.inConfigs[safe: configIndex] ?? false
-            if currentState != newState {
-                viewModel.setServer(server, enabled: newState, inConfigAt: configIndex)
-            }
         }
     }
 

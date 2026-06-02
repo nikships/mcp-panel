@@ -3,7 +3,6 @@ import SwiftUI
 
 struct ServerCardView: View {
     let server: ServerModel
-    @Binding var activeConfigIndex: Int
     @Binding var confirmDelete: Bool
     @Binding var blurJSONPreviews: Bool
     @State private var isEditing = false
@@ -14,15 +13,8 @@ struct ServerCardView: View {
     @State private var invalidReason: String = ""
     @State private var pendingConfig: ServerConfig?
     @Environment(\.themeColors) private var themeColors
-
-    private var widgetSymbolName: String {
-        if #available(macOS 11.0, *) {
-            return NSImage(systemSymbolName: "widget.small.fill", accessibilityDescription: nil) == nil
-                ? "square.grid.2x2"
-                : "widget.small.fill"
-        }
-        return "square.grid.2x2"
-    }
+    @Environment(\.currentTheme) private var currentTheme
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     let onToggle: () -> Void
     let onTagToggle: (ServerTag) -> Void
@@ -30,7 +22,6 @@ struct ServerCardView: View {
     let onUpdate: (String) -> (success: Bool, invalidReason: String?, config: ServerConfig?)
     let onUpdateForced: (ServerConfig) -> Bool
     let onCustomIconSelected: ((Result<String, Error>) -> Void)?
-    let onWidgetToggle: (() -> Void)?
 
     var body: some View {
         GlassPanel {
@@ -42,6 +33,27 @@ struct ServerCardView: View {
                 footerSection
             }
             .padding(DesignTokens.cardPadding)
+        }
+        .contextMenu {
+            Button {
+                startEditing()
+            } label: {
+                Label("Edit", systemImage: "pencil")
+            }
+
+            Button {
+                copyConfigToPasteboard()
+            } label: {
+                Label("Copy JSON", systemImage: "doc.on.doc")
+            }
+
+            Divider()
+
+            Button(role: .destructive) {
+                handleDeleteTapped()
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
         }
         .alert("Invalid Server Configuration", isPresented: $showForceAlert) {
             Button("Cancel", role: .cancel) {
@@ -55,16 +67,26 @@ struct ServerCardView: View {
         }
     }
 
+    private func copyConfigToPasteboard() {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(server.namedConfigJSON, forType: .string)
+    }
+
     // MARK: - View Sections
 
     private var headerSection: some View {
-        HStack(alignment: .top) {
-            Text(server.name)
-                .font(DesignTokens.Typography.title2)
-                .lineLimit(2)
-                .frame(maxWidth: .infinity, alignment: .leading)
+        HStack(alignment: .top, spacing: 10) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(server.name)
+                    .font(DesignTokens.Typography.title2)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-            Spacer()
+                TransportBadge(label: transportLabel, themeColors: themeColors)
+            }
+
+            Spacer(minLength: 8)
 
             ServerIconView(
                 server: server,
@@ -115,6 +137,7 @@ struct ServerCardView: View {
                 )
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(server.tags.isEmpty ? "Add tags" : "Edit tags")
         }
     }
 
@@ -129,13 +152,17 @@ struct ServerCardView: View {
 
     private var editorView: some View {
         VStack(alignment: .trailing, spacing: 8) {
-            TextEditor(text: $editedConfigText)
-                .font(DesignTokens.Typography.code)
-                .frame(height: 200)
-                .scrollContentBackground(.hidden)
-                .background(Color.black.opacity(0.3))
-                .cornerRadius(8)
-                .focusable(true)
+            JSONCodeEditor(
+                text: $editedConfigText,
+                themeColors: themeColors,
+                reduceTransparency: reduceTransparency
+            )
+            .frame(height: 220)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(themeColors.borderColor, lineWidth: 1)
+            )
 
             HStack(spacing: 8) {
                 EditorButton(
@@ -169,28 +196,30 @@ struct ServerCardView: View {
     private var previewView: some View {
         ZStack(alignment: .topTrailing) {
             ScrollView {
-                Text(server.configJSON)
-                    .font(DesignTokens.Typography.code)
-                    .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(8)
-                    .blur(radius: blurJSONPreviews ? DesignTokens.jsonPreviewBlurRadius : 0)
+                HighlightedJSONText(
+                    json: server.namedConfigJSON,
+                    themeColors: themeColors,
+                    themeName: currentTheme.rawValue
+                )
+                .padding(8)
+                .blur(radius: blurJSONPreviews ? DesignTokens.jsonPreviewBlurRadius : 0)
             }
             .frame(height: 200)
-            .background(Color.black.opacity(0.3))
-            .cornerRadius(8)
+            .background(jsonSurface)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
 
             if isHovering {
                 Button(action: startEditing) {
                     Image(systemName: "pencil")
                         .font(DesignTokens.Typography.labelSmall)
                         .padding(6)
-                        .background(Color.blue.opacity(0.8))
-                        .foregroundColor(.white)
+                        .background(themeColors.primaryAccent.opacity(0.85))
+                        .foregroundColor(themeColors.textOnAccent)
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
                 .padding(8)
+                .accessibilityLabel("Edit \(server.name) configuration")
             }
         }
         .onHover { hovering in
@@ -198,40 +227,35 @@ struct ServerCardView: View {
         }
     }
 
+    @ViewBuilder
+    private var jsonSurface: some View {
+        if reduceTransparency {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(themeColors.panelBackground)
+        } else {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(themeColors.mainBackground.opacity(0.55))
+        }
+    }
+
     private var footerSection: some View {
         HStack {
             CustomToggleSwitch(
                 isOn: Binding(
-                    get: { server.inConfigs[safe: activeConfigIndex] ?? false },
+                    get: { server.enabled },
                     set: { _ in onToggle() }
                 )
             )
+            .accessibilityLabel(server.enabled ? "Disable \(server.name)" : "Enable \(server.name)")
 
             Spacer()
 
-            // Widget toggle button
-            if let onWidgetToggle = onWidgetToggle {
-                Button(action: onWidgetToggle) {
-                    ZStack {
-                        Image(systemName: widgetSymbolName)
-                            .font(.system(size: 14))
-                        if server.showInWidget {
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.system(size: 8))
-                                .offset(x: 6, y: -6)
-                        }
-                    }
-                    .foregroundColor(server.showInWidget ? themeColors.primaryAccent : themeColors.mutedText)
-                }
-                .buttonStyle(.plain)
-                .help(server.showInWidget ? "Remove from Widget" : "Show in Widget")
-            }
-
             Button(action: handleDeleteTapped) {
                 Image(systemName: "trash")
-                    .foregroundColor(.red)
+                    .foregroundColor(themeColors.errorColor)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Delete \(server.name)")
             .alert("Delete Server", isPresented: $showingDeleteAlert) {
                 Button("Cancel", role: .cancel) { }
                 Button("Delete", role: .destructive) {
@@ -243,10 +267,32 @@ struct ServerCardView: View {
         }
     }
 
+    // MARK: - Transport Badge
+
+    private var transportLabel: String {
+        let config = server.config
+        if let type = config.type?.lowercased() {
+            switch type {
+            case "stdio": return "stdio"
+            case "http": return "HTTP"
+            case "sse": return "SSE"
+            default: break
+            }
+        }
+        if config.command != nil { return "stdio" }
+        if config.httpUrl != nil { return "HTTP" }
+        if let transport = config.transport {
+            return transport.type.uppercased()
+        }
+        if config.url != nil { return "HTTP" }
+        return "Custom"
+    }
+
     // MARK: - Actions
 
     private func startEditing() {
-        editedConfigText = server.configJSON
+        // Edit the full named entry so the key can be renamed.
+        editedConfigText = server.namedConfigJSON
         isEditing = true
     }
 
@@ -295,6 +341,30 @@ struct ServerCardView: View {
     }
 }
 
+// MARK: - Transport Badge
+
+private struct TransportBadge: View {
+    let label: String
+    let themeColors: ThemeColors
+
+    var body: some View {
+        Text(label)
+            .font(DesignTokens.Typography.captionSmall)
+            .foregroundColor(themeColors.primaryAccent)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(
+                Capsule()
+                    .fill(themeColors.primaryAccent.opacity(0.15))
+                    .overlay(
+                        Capsule()
+                            .stroke(themeColors.primaryAccent.opacity(0.3), lineWidth: 1)
+                    )
+            )
+            .accessibilityLabel("Transport: \(label)")
+    }
+}
+
 // MARK: - Editor Button
 
 private struct EditorButton: View {
@@ -330,7 +400,7 @@ private struct EditorButton: View {
     private var foregroundColor: Color {
         switch style {
         case .primary:
-            return Color(hex: "#1a1a1a")
+            return themeColors.textOnAccent
         case .secondary:
             return themeColors.primaryText
         }
@@ -378,5 +448,6 @@ struct TagChip: View {
             )
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Remove tag \(tag.rawValue)")
     }
 }

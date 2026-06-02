@@ -23,7 +23,7 @@ struct OnboardingModal: View {
                     Text("⚡")
                         .font(DesignTokens.Typography.hero)
 
-                    Text("Welcome to MCP Server Manager")
+                    Text("Welcome to MCP Panel")
                         .font(DesignTokens.Typography.title1)
 
                     Text("Manage your Claude Code MCP servers with ease")

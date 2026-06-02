@@ -15,7 +15,6 @@ struct ServerGridView: View {
                     ForEach(viewModel.filteredServers) { server in
                         ServerCardView(
                             server: server,
-                            activeConfigIndex: $viewModel.settings.activeConfigIndex,
                             confirmDelete: $viewModel.settings.confirmDelete,
                             blurJSONPreviews: $viewModel.settings.blurJSONPreviews,
                             onToggle: {
@@ -35,9 +34,6 @@ struct ServerGridView: View {
                             },
                             onCustomIconSelected: { result in
                                 viewModel.updateCustomIcon(for: server, result: result)
-                            },
-                            onWidgetToggle: {
-                                viewModel.toggleShowInWidget(server)
                             }
                         )
                     }
@@ -67,7 +63,7 @@ struct EmptyStateView: View {
             Text("No servers configured yet")
                 .font(DesignTokens.Typography.title2)
 
-            Text("Add your first MCP server to get started")
+            Text("Add your first MCP server to MCP Panel to get started")
                 .font(DesignTokens.Typography.body)
                 .foregroundColor(.secondary)
 

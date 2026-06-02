@@ -104,52 +104,15 @@ jobs:
                   - $(inherited)
                   - "@executable_path/../Frameworks"
             dependencies:
-              - sdk: WidgetKit.framework
               - sdk: SwiftUI.framework
-              - target: MCPServerManagerWidget
-                embed: true
-                codeSign: true
-                buildPhase:
-                  copyFiles:
-                    destination: plugins
             entitlements:
               path: MCPServerManager/MCPServerManager/MCPServerManager.entitlements
-
-          MCPServerManagerWidget:
-            type: app-extension
-            platform: macOS
-            sources:
-              - path: MCPServerManagerWidget
-                excludes:
-                  - "**/*.entitlements"
-                  - "**/*.md"
-            settings:
-              base:
-                PRODUCT_BUNDLE_IDENTIFIER: com.mcpmanager.app.widget
-                INFOPLIST_FILE: MCPServerManagerWidget/Info.plist
-                CODE_SIGN_ENTITLEMENTS: MCPServerManagerWidget/MCPServerManagerWidget.entitlements
-                SKIP_INSTALL: YES
-                CODE_SIGN_IDENTITY: "3rd Party Mac Developer Application"
-                PROVISIONING_PROFILE_SPECIFIER: ""
-                MARKETING_VERSION: "$(MARKETING_VERSION)"
-                CURRENT_PROJECT_VERSION: "$(CURRENT_PROJECT_VERSION)"
-                LD_RUNPATH_SEARCH_PATHS:
-                  - $(inherited)
-                  - "@executable_path/../Frameworks"
-                  - "@executable_path/../../../../Frameworks"
-            dependencies:
-              - sdk: WidgetKit.framework
-              - sdk: SwiftUI.framework
-              - sdk: AppIntents.framework
-            entitlements:
-              path: MCPServerManagerWidget/MCPServerManagerWidget.entitlements
 
         schemes:
           MCPServerManager:
             build:
               targets:
                 MCPServerManager: all
-                MCPServerManagerWidget: all
             run:
               config: Debug
             archive:
@@ -172,30 +135,11 @@ jobs:
             <true/>
             <key>com.apple.security.files.user-selected.read-write</key>
             <true/>
-            <key>com.apple.security.application-groups</key>
-            <array>
-                <string>group.com.anand-92.mcp-panel</string>
-            </array>
         </dict>
         </plist>
         ENTITLEMENTS
 
-        cat > MCPServerManagerWidget/MCPServerManagerWidget.entitlements << 'ENTITLEMENTS'
-        <?xml version="1.0" encoding="UTF-8"?>
-        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-        <plist version="1.0">
-        <dict>
-            <key>com.apple.security.app-sandbox</key>
-            <true/>
-            <key>com.apple.security.application-groups</key>
-            <array>
-                <string>group.com.anand-92.mcp-panel</string>
-            </array>
-        </dict>
-        </plist>
-        ENTITLEMENTS
-
-        # Build with xcodebuild (includes widget extension, no code signing for now)
+        # Build with xcodebuild (no code signing for now)
         xcodebuild -project MCPServerManager.xcodeproj \
           -scheme MCPServerManager \
           -configuration Release \
@@ -203,7 +147,7 @@ jobs:
           CODE_SIGNING_ALLOWED=NO \
           build
 
-        echo "✅ Build completed with widget extension (no Sparkle)"
+        echo "✅ Build completed (no Sparkle)"
 
         # Verify Sparkle is NOT linked
         echo "Checking for Sparkle dependency..."
@@ -234,35 +178,11 @@ jobs:
         # Copy provisioning profiles
         cp embedded.provisionprofile "$APP_PATH/Contents/embedded.provisionprofile"
 
-        # Copy widget provisioning profile (required for TestFlight - fixes error 90885)
-        WIDGET_APPEX="$APP_PATH/Contents/PlugIns/MCPServerManagerWidget.appex"
-        if [ -d "$WIDGET_APPEX" ] && [ -f "embedded-widget.provisionprofile" ]; then
-          cp embedded-widget.provisionprofile "$WIDGET_APPEX/Contents/embedded.provisionprofile"
-          echo "✅ Widget provisioning profile embedded"
-        elif [ -d "$WIDGET_APPEX" ]; then
-          echo "⚠️ Warning: embedded-widget.provisionprofile not found - widget may fail TestFlight validation"
-        fi
-
         # Update Info.plist with version
         /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION_NUMBER" "$APP_PATH/Contents/Info.plist"
         /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ github.run_number }}" "$APP_PATH/Contents/Info.plist"
         /usr/libexec/PlistBuddy -c "Add :LSApplicationCategoryType string public.app-category.developer-tools" "$APP_PATH/Contents/Info.plist" 2>/dev/null || true
         /usr/libexec/PlistBuddy -c "Add :NSHumanReadableCopyright string 'Copyright © 2025 Nikhil Anand. All rights reserved.'" "$APP_PATH/Contents/Info.plist" 2>/dev/null || true
-
-        # Update widget Info.plist with matching version (fixes App Store Connect error 90473)
-        WIDGET_PLIST="$APP_PATH/Contents/PlugIns/MCPServerManagerWidget.appex/Contents/Info.plist"
-        if [ -f "$WIDGET_PLIST" ]; then
-          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION_NUMBER" "$WIDGET_PLIST"
-          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ github.run_number }}" "$WIDGET_PLIST"
-          echo "✅ Widget version updated to $VERSION_NUMBER (${{ github.run_number }})"
-        fi
-
-        # Verify widget is embedded
-        if [ -d "$APP_PATH/Contents/PlugIns/MCPServerManagerWidget.appex" ]; then
-          echo "✅ Widget extension embedded successfully"
-        else
-          echo "⚠️ Widget extension not found in app bundle"
-        fi
 
         echo "VERSION_NUMBER=$VERSION_NUMBER" >> $GITHUB_ENV
 
@@ -277,35 +197,7 @@ jobs:
 
         echo "Signing with: $APP_SIGNING_IDENTITY"
 
-        # Create widget entitlements with correct application identifier for App Store
-        cat > widget-appstore.entitlements << 'WIDGET_ENT'
-        <?xml version="1.0" encoding="UTF-8"?>
-        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-        <plist version="1.0">
-        <dict>
-            <key>com.apple.application-identifier</key>
-            <string>NW6B3R27LQ.com.mcpmanager.app.widget</string>
-            <key>com.apple.security.app-sandbox</key>
-            <true/>
-            <key>com.apple.security.application-groups</key>
-            <array>
-                <string>group.com.anand-92.mcp-panel</string>
-            </array>
-        </dict>
-        </plist>
-        WIDGET_ENT
-
-        # Sign the widget extension first (must be done before main app, with its own entitlements)
-        if [ -d "$APP_PATH/Contents/PlugIns/MCPServerManagerWidget.appex" ]; then
-          codesign --force --sign "$APP_SIGNING_IDENTITY" \
-            --entitlements widget-appstore.entitlements \
-            --options runtime \
-            --timestamp \
-            "$APP_PATH/Contents/PlugIns/MCPServerManagerWidget.appex"
-          echo "✅ Widget extension signed"
-        fi
-
-        # Sign the main app (without --deep since widget is already signed with its own entitlements)
+        # Sign the main app
         codesign --force --sign "$APP_SIGNING_IDENTITY" \
           --entitlements appstore.entitlements \
           --options runtime \

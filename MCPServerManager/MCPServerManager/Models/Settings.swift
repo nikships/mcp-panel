@@ -1,21 +1,11 @@
 import Foundation
 
 struct AppSettings: Codable, Equatable {
-    private static let defaultConfigPaths = ["~/.claude.json", "~/.settings.json"]
+    private static let defaultConfigPath = "~/.claude.json"
 
     var confirmDelete: Bool
-    var configPaths: [String] {
-        didSet {
-            configPaths = Self.normalizedConfigPaths(configPaths)
-            activeConfigIndex = Self.normalizedActiveConfigIndex(activeConfigIndex, configPathCount: configPaths.count)
-        }
-    }
+    var configPath: String
     var droidConfigPath: String?
-    var activeConfigIndex: Int {
-        didSet {
-            activeConfigIndex = Self.normalizedActiveConfigIndex(activeConfigIndex, configPathCount: configPaths.count)
-        }
-    }
     var blurJSONPreviews: Bool
     var overrideTheme: String? // nil = auto-detect, otherwise use the theme name
 
@@ -26,9 +16,8 @@ struct AppSettings: Codable, Equatable {
 
     static let `default` = AppSettings(
         confirmDelete: true,
-        configPaths: defaultConfigPaths,
+        configPath: defaultConfigPath,
         droidConfigPath: nil,
-        activeConfigIndex: 0,
         blurJSONPreviews: false,
         overrideTheme: nil,
         menuBarModeEnabled: false,
@@ -37,18 +26,16 @@ struct AppSettings: Codable, Equatable {
     )
 
     init(confirmDelete: Bool = true,
-         configPaths: [String] = defaultConfigPaths,
+         configPath: String = defaultConfigPath,
          droidConfigPath: String? = nil,
-         activeConfigIndex: Int = 0,
          blurJSONPreviews: Bool = false,
          overrideTheme: String? = nil,
          menuBarModeEnabled: Bool = false,
          hideDockIconInMenuBarMode: Bool = false,
          launchAtLogin: Bool = false) {
         self.confirmDelete = confirmDelete
-        self.configPaths = Self.normalizedConfigPaths(configPaths)
+        self.configPath = Self.normalizedConfigPath(configPath)
         self.droidConfigPath = droidConfigPath
-        self.activeConfigIndex = Self.normalizedActiveConfigIndex(activeConfigIndex, configPathCount: self.configPaths.count)
         self.blurJSONPreviews = blurJSONPreviews
         self.overrideTheme = overrideTheme
         self.menuBarModeEnabled = menuBarModeEnabled
@@ -58,17 +45,23 @@ struct AppSettings: Codable, Equatable {
 
     // Custom Codable for backward compatibility with old settings
     enum CodingKeys: String, CodingKey {
-        case confirmDelete, configPaths, droidConfigPath, activeConfigIndex, blurJSONPreviews, overrideTheme
+        case confirmDelete, configPath, configPaths, droidConfigPath, blurJSONPreviews, overrideTheme
         case menuBarModeEnabled, hideDockIconInMenuBarMode, launchAtLogin
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         confirmDelete = try container.decodeIfPresent(Bool.self, forKey: .confirmDelete) ?? true
-        configPaths = Self.normalizedConfigPaths(try container.decodeIfPresent([String].self, forKey: .configPaths))
+        // Migration: prefer new single `configPath`; fall back to legacy `configPaths[0]`.
+        if let decodedPath = try container.decodeIfPresent(String.self, forKey: .configPath) {
+            configPath = Self.normalizedConfigPath(decodedPath)
+        } else if let legacyPaths = try container.decodeIfPresent([String].self, forKey: .configPaths),
+                  let first = legacyPaths.first {
+            configPath = Self.normalizedConfigPath(first)
+        } else {
+            configPath = Self.defaultConfigPath
+        }
         droidConfigPath = try container.decodeIfPresent(String.self, forKey: .droidConfigPath)?.trimmedNilIfEmpty
-        let decodedIndex = try container.decodeIfPresent(Int.self, forKey: .activeConfigIndex) ?? 0
-        activeConfigIndex = Self.normalizedActiveConfigIndex(decodedIndex, configPathCount: configPaths.count)
         blurJSONPreviews = try container.decodeIfPresent(Bool.self, forKey: .blurJSONPreviews) ?? false
         overrideTheme = try container.decodeIfPresent(String.self, forKey: .overrideTheme)
         // New settings with defaults for backward compatibility
@@ -77,33 +70,21 @@ struct AppSettings: Codable, Equatable {
         launchAtLogin = try container.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? false
     }
 
-    var activeConfigPath: String {
-        configPaths[safe: activeConfigIndex] ?? config1Path
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(confirmDelete, forKey: .confirmDelete)
+        try container.encode(configPath, forKey: .configPath)
+        try container.encodeIfPresent(droidConfigPath, forKey: .droidConfigPath)
+        try container.encode(blurJSONPreviews, forKey: .blurJSONPreviews)
+        try container.encodeIfPresent(overrideTheme, forKey: .overrideTheme)
+        try container.encode(menuBarModeEnabled, forKey: .menuBarModeEnabled)
+        try container.encode(hideDockIconInMenuBarMode, forKey: .hideDockIconInMenuBarMode)
+        try container.encode(launchAtLogin, forKey: .launchAtLogin)
     }
 
-    var config1Path: String {
-        configPaths[safe: 0] ?? "~/.claude.json"
-    }
-
-    var config2Path: String {
-        configPaths[safe: 1] ?? "~/.settings.json"
-    }
-
-    private static func normalizedConfigPaths(_ paths: [String]?) -> [String] {
-        var normalized = (paths ?? [])
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
-        while normalized.count < defaultConfigPaths.count {
-            normalized.append(defaultConfigPaths[normalized.count])
-        }
-
-        return normalized
-    }
-
-    private static func normalizedActiveConfigIndex(_ index: Int, configPathCount: Int) -> Int {
-        guard configPathCount > 0 else { return 0 }
-        return max(0, min(index, configPathCount - 1))
+    private static func normalizedConfigPath(_ path: String) -> String {
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? defaultConfigPath : trimmed
     }
 }
 

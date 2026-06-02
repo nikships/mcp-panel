@@ -38,10 +38,6 @@ struct MenuBarPopoverView: View {
         return viewModel.servers.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
     }
 
-    private var configNames: (active: String, other: String) {
-        viewModel.settings.activeConfigIndex == 0 ? ("Claude", "Gemini") : ("Gemini", "Claude")
-    }
-
     var body: some View {
         VStack(spacing: 0) {
             popoverHeader
@@ -73,29 +69,10 @@ struct MenuBarPopoverView: View {
                 .foregroundColor(themeColors.primaryAccent)
 
             Spacer()
-
-            configSwitchButton
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .background(Color.clear)
-    }
-
-    private var configSwitchButton: some View {
-        Button {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                viewModel.switchActiveConfig(to: 1 - viewModel.settings.activeConfigIndex)
-            }
-        } label: {
-            Text(configNames.active)
-                .font(.system(size: 10, weight: .medium))
-                .foregroundColor(themeColors.textOnAccent)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(Capsule().fill(themeColors.accentGradient))
-        }
-        .buttonStyle(.plain)
-        .help("Switch to \(configNames.other)")
     }
 
     // MARK: - Search Field
@@ -144,7 +121,7 @@ struct MenuBarPopoverView: View {
                     ForEach(filteredServers) { server in
                         PopoverServerRow(
                             server: server,
-                            isEnabled: server.inConfigs[safe: viewModel.settings.activeConfigIndex] ?? false,
+                            isEnabled: server.enabled,
                             themeColors: themeColors,
                             onToggle: { viewModel.toggleServer(server) }
                         )

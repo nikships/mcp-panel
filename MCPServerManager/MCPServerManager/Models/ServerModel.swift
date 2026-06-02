@@ -6,32 +6,26 @@ struct ServerModel: Identifiable, Codable, Equatable {
     var config: ServerConfig
     var enabled: Bool
     var updatedAt: Date
-    var inConfigs: [Bool] // [inConfig1, inConfig2]
     var registryImageUrl: String? // Image URL from MCP registry (takes precedence over fetched icons)
     var customIconPath: String? // User-selected custom icon path (takes highest precedence)
     var tags: [ServerTag]
-    var showInWidget: Bool // Whether this server appears in the macOS widget
 
     init(id: UUID = UUID(),
          name: String,
          config: ServerConfig,
          enabled: Bool = false,
          updatedAt: Date = Date(),
-         inConfigs: [Bool] = [false, false],
          registryImageUrl: String? = nil,
          customIconPath: String? = nil,
-         tags: [ServerTag] = [],
-         showInWidget: Bool = false) {
+         tags: [ServerTag] = []) {
         self.id = id
         self.name = name
         self.config = config
         self.enabled = enabled
         self.updatedAt = updatedAt
-        self.inConfigs = inConfigs
         self.registryImageUrl = registryImageUrl
         self.customIconPath = customIconPath
         self.tags = tags
-        self.showInWidget = showInWidget
     }
 
     enum CodingKeys: String, CodingKey {
@@ -40,11 +34,10 @@ struct ServerModel: Identifiable, Codable, Equatable {
         case config
         case enabled
         case updatedAt
-        case inConfigs
+        case inConfigs // legacy key (pre single-config migration)
         case registryImageUrl
         case customIconPath
         case tags
-        case showInWidget
     }
 
     init(from decoder: Decoder) throws {
@@ -52,18 +45,18 @@ struct ServerModel: Identifiable, Codable, Equatable {
         id = try container.decode(UUID.self, forKey: .id)
         name = try container.decode(String.self, forKey: .name)
         config = try container.decode(ServerConfig.self, forKey: .config)
-        enabled = try container.decode(Bool.self, forKey: .enabled)
-        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
-        let decodedInConfigs = try container.decode([Bool].self, forKey: .inConfigs)
-        var normalizedInConfigs = Array(decodedInConfigs.prefix(2))
-        while normalizedInConfigs.count < 2 {
-            normalizedInConfigs.append(false)
+        // Migration: prefer new `enabled` key; if absent, derive from legacy `inConfigs`.
+        if let decodedEnabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) {
+            enabled = decodedEnabled
+        } else if let legacyInConfigs = try container.decodeIfPresent([Bool].self, forKey: .inConfigs) {
+            enabled = legacyInConfigs.first ?? false
+        } else {
+            enabled = false
         }
-        inConfigs = normalizedInConfigs
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
         registryImageUrl = try container.decodeIfPresent(String.self, forKey: .registryImageUrl)
         customIconPath = try container.decodeIfPresent(String.self, forKey: .customIconPath)
         tags = try container.decodeIfPresent([ServerTag].self, forKey: .tags) ?? []
-        showInWidget = try container.decodeIfPresent(Bool.self, forKey: .showInWidget) ?? false
     }
 
     func encode(to encoder: Encoder) throws {
@@ -73,11 +66,9 @@ struct ServerModel: Identifiable, Codable, Equatable {
         try container.encode(config, forKey: .config)
         try container.encode(enabled, forKey: .enabled)
         try container.encode(updatedAt, forKey: .updatedAt)
-        try container.encode(inConfigs, forKey: .inConfigs)
         try container.encodeIfPresent(registryImageUrl, forKey: .registryImageUrl)
         try container.encodeIfPresent(customIconPath, forKey: .customIconPath)
         try container.encode(tags, forKey: .tags)
-        try container.encode(showInWidget, forKey: .showInWidget)
     }
 
     // MARK: - Computed Properties
@@ -94,8 +85,12 @@ struct ServerModel: Identifiable, Codable, Equatable {
         return string
     }
 
-    var isInConfig1: Bool { inConfigs.count > 0 ? inConfigs[0] : false }
-    var isInConfig2: Bool { inConfigs.count > 1 ? inConfigs[1] : false }
+    /// Full named entry: "name": { ...config... }  (matches on-disk shape)
+    var namedConfigJSON: String {
+        let inner = configJSON                       // existing pretty body
+        let indented = inner.split(separator: "\n", omittingEmptySubsequences: false).joined(separator: "\n  ")
+        return "\"\(name)\" : \(indented)"
+    }
 
     /// Extract domain for icon fetching
     var iconDomain: String? {

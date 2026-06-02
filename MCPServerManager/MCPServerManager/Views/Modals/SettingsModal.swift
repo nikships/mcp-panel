@@ -39,7 +39,6 @@ struct SettingsModal: View {
 
     @State private var selectedTab: SettingsTab = .general
     @State private var config1Path: String = ""
-    @State private var config2Path: String = ""
     @State private var droidConfigPath: String = ""
     @State private var confirmDelete: Bool = true
     @State private var fetchServerLogos: Bool = true
@@ -101,7 +100,7 @@ struct SettingsModal: View {
                     .frame(width: 48, height: 48)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
 
-                Text("Settings")
+                Text("MCP Panel")
                     .font(DesignTokens.Typography.title3)
                     .foregroundColor(themeColors.primaryText)
             }
@@ -203,18 +202,8 @@ struct SettingsModal: View {
                     Divider().opacity(0.3)
 
                     ConfigPathEditor(
-                        label: "Gemini CLI",
-                        icon: "2.circle.fill",
-                        placeholder: "~/.settings.json",
-                        path: $config2Path,
-                        onBrowse: { selectConfigFile { config2Path = $0 } }
-                    )
-
-                    Divider().opacity(0.3)
-
-                    ConfigPathEditor(
                         label: "Droid (Optional)",
-                        icon: "3.circle.fill",
+                        icon: "2.circle.fill",
                         placeholder: "~/.factory/mcp.json",
                         path: $droidConfigPath,
                         onBrowse: { selectConfigFile { droidConfigPath = $0 } }
@@ -239,7 +228,7 @@ struct SettingsModal: View {
                         isOn: $launchAtLogin,
                         icon: "power.circle.fill",
                         label: "Launch at Login",
-                        description: "Start MCP Server Manager when you log in"
+                        description: "Start MCP Panel when you log in"
                     )
 
                     if launchAtLogin && launchAtLoginRequiresApproval {
@@ -285,7 +274,7 @@ struct SettingsModal: View {
                                 .font(DesignTokens.Typography.label)
                                 .foregroundColor(themeColors.primaryText)
 
-                            Text("Uses Claude Code or Gemini CLI theme based on active config")
+                            Text("Uses the Claude Code theme based on your config")
                                 .font(DesignTokens.Typography.caption)
                                 .foregroundColor(themeColors.mutedText)
                         }
@@ -455,8 +444,7 @@ struct SettingsModal: View {
     // MARK: - Actions
 
     private func loadSettings() {
-        config1Path = viewModel.settings.config1Path
-        config2Path = viewModel.settings.config2Path
+        config1Path = viewModel.settings.configPath
         droidConfigPath = viewModel.settings.droidConfigPath ?? ""
         confirmDelete = viewModel.settings.confirmDelete
         fetchServerLogos = UserDefaults.standard.object(forKey: "fetchServerLogos") as? Bool ?? true
@@ -528,7 +516,6 @@ struct SettingsModal: View {
 
     private func resetToDefaults() {
         config1Path = "~/.claude.json"
-        config2Path = "~/.settings.json"
         droidConfigPath = ""
         confirmDelete = true
         fetchServerLogos = true
@@ -538,7 +525,7 @@ struct SettingsModal: View {
     }
 
     private func saveSettings() {
-        viewModel.settings.configPaths = [config1Path, config2Path]
+        viewModel.settings.configPath = config1Path
         let trimmedDroidPath = droidConfigPath.trimmingCharacters(in: .whitespacesAndNewlines)
         viewModel.settings.droidConfigPath = trimmedDroidPath.isEmpty ? nil : trimmedDroidPath
         viewModel.settings.confirmDelete = confirmDelete
@@ -764,7 +751,6 @@ private struct ThemeSwatchButton: View {
     private var displayName: String {
         switch theme {
         case .claudeCode: return "Claude"
-        case .geminiCLI: return "Gemini"
         case .default: return "Cyberpunk"
         case .solarizedDark: return "Sol Dark"
         case .solarizedLight: return "Sol Light"

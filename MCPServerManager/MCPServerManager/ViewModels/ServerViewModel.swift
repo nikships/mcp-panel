@@ -18,6 +18,12 @@ class ServerViewModel: ObservableObject {
     private let configManager = ConfigManager.shared
     private var skipSync = false
 
+    // MARK: - Live File Watching
+
+    private var fileWatcher: ConfigFileWatcher?
+    /// Window during which external file-change events are ignored (suppresses our own writes).
+    private var ignoreExternalChangesUntil: Date = .distantPast
+
     // MARK: - Theme Detection
 
     var currentTheme: AppTheme {
@@ -28,7 +34,7 @@ class ServerViewModel: ObservableObject {
             return overrideTheme
         }
         // Otherwise, auto-detect from config path
-        return AppTheme.detect(from: settings.activeConfigPath)
+        return AppTheme.detect(from: settings.configPath)
     }
 
     var themeColors: ThemeColors {
@@ -54,25 +60,33 @@ class ServerViewModel: ObservableObject {
         // Only load servers if onboarding is complete
         if !showOnboarding {
             loadServers()
+            startWatchingConfig()
         }
+    }
+
+    deinit {
+        fileWatcher?.stop()
     }
 
     // MARK: - Filtering & Searching
 
     var filteredServers: [ServerModel] {
-        let activeIndex = settings.activeConfigIndex
         var filtered = servers
 
         // Apply filter mode
         switch filterMode {
         case .all:
-            break  // Show all servers in this universe
+            break
         case .active:
-            filtered = filtered.filter { $0.inConfigs[safe: activeIndex] ?? false }
+            filtered = filtered.filter { $0.enabled }
         case .disabled:
-            filtered = filtered.filter { !($0.inConfigs[safe: activeIndex] ?? false) }
+            filtered = filtered.filter { !$0.enabled }
         case .recent:
-            filtered = filtered.sorted { $0.updatedAt > $1.updatedAt }
+            // Servers modified within the last 24 hours, ordered most-recent first.
+            let cutoff = Date().addingTimeInterval(-24 * 60 * 60)
+            filtered = filtered
+                .filter { $0.updatedAt >= cutoff }
+                .sorted { $0.updatedAt > $1.updatedAt }
         }
 
         // Apply search
@@ -91,44 +105,42 @@ class ServerViewModel: ObservableObject {
 
     func loadSettings() {
         settings = UserDefaults.standard.appSettings
-        // Sync current theme to widget on load
-        SharedDataManager.shared.saveTheme(currentTheme.rawValue)
     }
 
     func saveSettings() {
         UserDefaults.standard.appSettings = settings
-        // Also save to SharedDataManager for widget access
-        SharedDataManager.shared.saveConfigPaths(
-            config1: settings.configPaths[0],
-            config2: settings.configPaths[1],
-            activeIndex: settings.activeConfigIndex
-        )
-        SharedDataManager.shared.saveWidgetActiveConfig(settings.activeConfigIndex)
-        // Save current theme for widget
-        SharedDataManager.shared.saveTheme(currentTheme.rawValue)
+        // Restart the watcher on the (possibly new) config path
+        startWatchingConfig()
         showToast(message: "Settings saved", type: .success)
     }
 
-    func switchActiveConfig(to index: Int) {
-        let normalizedIndex = max(0, min(index, 1))
-        guard settings.activeConfigIndex != normalizedIndex else { return }
-
-        settings.activeConfigIndex = normalizedIndex
-        UserDefaults.standard.appSettings = settings
-        SharedDataManager.shared.saveConfigPaths(
-            config1: settings.configPaths[0],
-            config2: settings.configPaths[1],
-            activeIndex: normalizedIndex
-        )
-        SharedDataManager.shared.saveWidgetActiveConfig(normalizedIndex)
-        loadServers()
-    }
-
     func completeOnboarding(configPath: String) {
-        settings.configPaths[0] = configPath
+        settings.configPath = configPath
         UserDefaults.standard.appSettings = settings
         UserDefaults.standard.hasCompletedOnboarding = true
         showOnboarding = false
+        loadServers()
+        startWatchingConfig()
+    }
+
+    // MARK: - File Watching
+
+    private func startWatchingConfig() {
+        let path = settings.configPath
+        if let watcher = fileWatcher {
+            watcher.updatePath(path)
+        } else {
+            let watcher = ConfigFileWatcher(path: path) { [weak self] in
+                self?.handleExternalConfigChange()
+            }
+            fileWatcher = watcher
+            watcher.start()
+        }
+    }
+
+    private func handleExternalConfigChange() {
+        // Ignore events triggered by our own writes.
+        guard Date() >= ignoreExternalChangesUntil else { return }
         loadServers()
     }
 
@@ -138,21 +150,12 @@ class ServerViewModel: ObservableObject {
         isLoading = true
         skipSync = true
 
-        // Ensure widget has current config paths
-        SharedDataManager.shared.saveConfigPaths(
-            config1: settings.configPaths[0],
-            config2: settings.configPaths[1],
-            activeIndex: settings.activeConfigIndex
-        )
-        SharedDataManager.shared.saveWidgetActiveConfig(settings.activeConfigIndex)
-
         Task {
             var loadError: Error?
 
             do {
-                let config1 = try configManager.readConfig(from: settings.config1Path)
-                let config2 = try configManager.readConfig(from: settings.config2Path)
-                servers = mergeConfigs(config1: config1, config2: config2)
+                let config = try configManager.readConfig(from: settings.configPath)
+                servers = mergeConfig(config)
             } catch {
                 #if DEBUG
                 print("Error loading servers: \(error)")
@@ -168,7 +171,6 @@ class ServerViewModel: ObservableObject {
 
             skipSync = false
             isLoading = false
-            syncToWidget()
 
             if let error = loadError {
                 showToast(message: "Failed to load config: \(error.localizedDescription)", type: .error)
@@ -176,48 +178,32 @@ class ServerViewModel: ObservableObject {
         }
     }
 
-    private func mergeConfigs(config1: [String: ServerConfig], config2: [String: ServerConfig]) -> [ServerModel] {
+    /// Merge the on-disk config with cached metadata. Non-destructive to local metadata
+    /// (tags, customIconPath, registryImageUrl): external adds surface as new
+    /// enabled cards while existing servers keep their metadata.
+    private func mergeConfig(_ config: [String: ServerConfig]) -> [ServerModel] {
         var merged: [String: ServerModel] = [:]
         let now = Date()
 
-        // Start with cached servers to preserve metadata, but reset inConfigs
+        // Start with cached servers to preserve metadata, but reset enabled state.
         for server in UserDefaults.standard.cachedServers {
             var cachedServer = server
-            cachedServer.inConfigs = [false, false]
+            cachedServer.enabled = false
             merged[server.name] = cachedServer
         }
 
-        // Process config1 servers (Claude Code)
-        for (name, config) in config1 {
+        // Servers present on disk are enabled.
+        for (name, serverConfig) in config {
             if var existing = merged[name] {
-                existing.config = config
-                existing.inConfigs[0] = true
+                existing.config = serverConfig
+                existing.enabled = true
                 merged[name] = existing
             } else {
                 merged[name] = ServerModel(
                     name: name,
-                    config: config,
-                    updatedAt: now,
-                    inConfigs: [true, false]
-                )
-            }
-        }
-
-        // Process config2 servers (Gemini CLI)
-        for (name, config) in config2 {
-            if var existing = merged[name] {
-                // Only update config if not already set by config1
-                if !existing.inConfigs[0] {
-                    existing.config = config
-                }
-                existing.inConfigs[1] = true
-                merged[name] = existing
-            } else {
-                merged[name] = ServerModel(
-                    name: name,
-                    config: config,
-                    updatedAt: now,
-                    inConfigs: [false, true]
+                    config: serverConfig,
+                    enabled: true,
+                    updatedAt: now
                 )
             }
         }
@@ -233,27 +219,25 @@ class ServerViewModel: ObservableObject {
             return
         }
 
+        // Suppress the file-watcher reload caused by our own write.
+        ignoreExternalChangesUntil = Date().addingTimeInterval(0.6)
+
         Task {
             do {
-                let config1Servers = servers
-                    .filter { $0.isInConfig1 }
-                    .reduce(into: [String: ServerConfig]()) { $0[$1.name] = $1.config }
-
-                let config2Servers = servers
-                    .filter { $0.isInConfig2 }
+                let enabledServers = servers
+                    .filter { $0.enabled }
                     .reduce(into: [String: ServerConfig]()) { $0[$1.name] = $1.config }
 
                 #if DEBUG
-                print("DEBUG: Syncing - Config1: \(config1Servers.count), Config2: \(config2Servers.count)")
+                print("DEBUG: Syncing \(enabledServers.count) enabled server(s)")
                 #endif
 
-                try configManager.writeConfig(servers: config1Servers, to: settings.config1Path)
-                try configManager.writeConfig(servers: config2Servers, to: settings.config2Path)
+                try configManager.writeConfig(servers: enabledServers, to: settings.configPath)
 
                 if let droidPath = settings.droidConfigPath?.trimmingCharacters(in: .whitespacesAndNewlines),
                    !droidPath.isEmpty {
                     do {
-                        try configManager.syncClaudeServersToDroid(config1Servers, to: droidPath)
+                        try configManager.syncClaudeServersToDroid(enabledServers, to: droidPath)
                     } catch {
                         NSLog("Failed to sync Droid MCP config: %@", error.localizedDescription)
                     }
@@ -310,7 +294,6 @@ class ServerViewModel: ObservableObject {
     }
 
     private func addServersInternal(serverDict: [String: ServerConfig], registryImages: [String: String]?, forceMode: Bool) {
-        let configIndex = settings.activeConfigIndex
         let now = Date()
 
         for (name, config) in serverDict {
@@ -319,19 +302,16 @@ class ServerViewModel: ObservableObject {
             if let index = servers.firstIndex(where: { $0.name == name }) {
                 servers[index].config = config
                 servers[index].updatedAt = now
-                servers[index].inConfigs[configIndex] = true
+                servers[index].enabled = true
                 if let imageUrl = registryImageUrl {
                     servers[index].registryImageUrl = imageUrl
                 }
             } else {
-                var inConfigs = [false, false]
-                inConfigs[configIndex] = true
-
                 let newServer = ServerModel(
                     name: name,
                     config: config,
+                    enabled: true,
                     updatedAt: now,
-                    inConfigs: inConfigs,
                     registryImageUrl: registryImageUrl
                 )
                 servers.append(newServer)
@@ -371,7 +351,35 @@ class ServerViewModel: ObservableObject {
         return try JSONDecoder().decode(ServerConfig.self, from: data)
     }
 
+    /// Parse a single named entry (`"name": { ... }`) and return the key + config if exactly one
+    /// top-level key is present and its value is an object.
+    private func parseNamedEntry(from jsonString: String) -> (name: String, config: ServerConfig)? {
+        guard let serverDict = ServerExtractor.extractServerEntries(from: jsonString),
+              serverDict.count == 1,
+              let entry = serverDict.first else {
+            return nil
+        }
+        return (entry.key, entry.value)
+    }
+
     func updateServer(_ server: ServerModel, with jsonString: String) -> (success: Bool, invalidReason: String?, config: ServerConfig?) {
+        // Detect a rename: a single named top-level key that differs from the current name.
+        if let entry = parseNamedEntry(from: jsonString) {
+            if entry.name != server.name {
+                return renameServer(server, to: entry.name, config: entry.config)
+            }
+            // Same name: treat as a value update using the entry's config.
+            if !entry.config.isValid {
+                return (success: false, invalidReason: getInvalidReason(entry.config), config: entry.config)
+            }
+            guard applyServerUpdate(server, config: entry.config) else {
+                return (success: false, invalidReason: nil, config: nil)
+            }
+            showToast(message: "Server updated", type: .success)
+            return (success: true, invalidReason: nil, config: nil)
+        }
+
+        // Fall back to bare config object (value-only) parsing.
         do {
             let config = try parseServerConfig(from: jsonString)
 
@@ -391,7 +399,62 @@ class ServerViewModel: ObservableObject {
         }
     }
 
+    /// Rename a server via its top-level JSON key. Validates the new name and re-keys.
+    private func renameServer(_ server: ServerModel, to newName: String, config: ServerConfig) -> (success: Bool, invalidReason: String?, config: ServerConfig?) {
+        let trimmedName = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !trimmedName.isEmpty else {
+            showToast(message: "Server name cannot be empty", type: .error)
+            return (success: false, invalidReason: nil, config: nil)
+        }
+
+        // Collision with a different server.
+        if servers.contains(where: { $0.id != server.id && $0.name == trimmedName }) {
+            showToast(message: "A server named '\(trimmedName)' already exists", type: .error)
+            return (success: false, invalidReason: nil, config: nil)
+        }
+
+        if !config.isValid {
+            return (success: false, invalidReason: getInvalidReason(config), config: config)
+        }
+
+        guard let index = servers.firstIndex(where: { $0.id == server.id }) else {
+            return (success: false, invalidReason: nil, config: nil)
+        }
+
+        servers[index].name = trimmedName
+        servers[index].config = config
+        servers[index].updatedAt = Date()
+        servers.sort { $0.name < $1.name }
+        objectWillChange.send()
+        syncToConfigs()
+        showToast(message: "Renamed to '\(trimmedName)'", type: .success)
+        return (success: true, invalidReason: nil, config: nil)
+    }
+
     func updateServerForced(_ server: ServerModel, with jsonString: String) -> Bool {
+        // Honor rename intent in the forced path too.
+        if let entry = parseNamedEntry(from: jsonString) {
+            if entry.name != server.name {
+                let trimmedName = entry.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmedName.isEmpty,
+                   !servers.contains(where: { $0.id != server.id && $0.name == trimmedName }),
+                   let index = servers.firstIndex(where: { $0.id == server.id }) {
+                    servers[index].name = trimmedName
+                    servers[index].config = entry.config
+                    servers[index].updatedAt = Date()
+                    servers.sort { $0.name < $1.name }
+                    objectWillChange.send()
+                    syncToConfigs()
+                    showToast(message: "Server force saved", type: .success)
+                    return true
+                }
+            }
+            guard applyServerUpdate(server, config: entry.config) else { return false }
+            showToast(message: "Server force saved", type: .success)
+            return true
+        }
+
         do {
             let config = try parseServerConfig(from: jsonString)
             guard applyServerUpdate(server, config: config) else { return false }
@@ -464,29 +527,25 @@ class ServerViewModel: ObservableObject {
     }
 
     private func applyRawJSONInternal(serverDict: [String: ServerConfig], forceMode: Bool) {
-        let configIndex = settings.activeConfigIndex
         let now = Date()
 
-        // Remove all servers from this config
+        // The raw editor represents the full enabled set: disable everything first.
         for i in 0..<servers.count {
-            servers[i].inConfigs[configIndex] = false
+            servers[i].enabled = false
         }
 
-        // Add/update servers from JSON
+        // Add/update servers from JSON, marking them enabled.
         for (name, config) in serverDict {
             if let index = servers.firstIndex(where: { $0.name == name }) {
                 servers[index].config = config
-                servers[index].inConfigs[configIndex] = true
+                servers[index].enabled = true
                 servers[index].updatedAt = now
             } else {
-                var inConfigs = [false, false]
-                inConfigs[configIndex] = true
-
                 let newServer = ServerModel(
                     name: name,
                     config: config,
-                    updatedAt: now,
-                    inConfigs: inConfigs
+                    enabled: true,
+                    updatedAt: now
                 )
                 servers.append(newServer)
             }
@@ -513,7 +572,6 @@ class ServerViewModel: ObservableObject {
     }
 
     func enableServers(with tag: ServerTag) {
-        let configIndex = settings.activeConfigIndex
         let now = Date()
 
         let taggedServers = servers.enumerated().filter { $0.element.tags.contains(tag) }
@@ -524,7 +582,7 @@ class ServerViewModel: ObservableObject {
         }
 
         let indicesToEnable = taggedServers
-            .filter { !(servers[$0.offset].inConfigs[safe: configIndex] ?? false) }
+            .filter { !servers[$0.offset].enabled }
             .map { $0.offset }
 
         guard !indicesToEnable.isEmpty else {
@@ -533,7 +591,7 @@ class ServerViewModel: ObservableObject {
         }
 
         for index in indicesToEnable {
-            servers[index].inConfigs[configIndex] = true
+            servers[index].enabled = true
             servers[index].updatedAt = now
         }
 
@@ -555,37 +613,22 @@ class ServerViewModel: ObservableObject {
         servers[index] = updated
 
         // Tags are app metadata (local-only), so we only update the cache.
-        // NOTE: If the user clears app data, tags will be lost.
-        // Future improvement: Persist tags to a sidecar file or config metadata.
         UserDefaults.standard.cachedServers = servers
     }
 
     func toggleServer(_ server: ServerModel) {
-        setServer(server, enabled: !(server.inConfigs[safe: settings.activeConfigIndex] ?? false), inConfigAt: settings.activeConfigIndex)
+        setServer(server, enabled: !server.enabled)
     }
 
-    func setServer(_ server: ServerModel, enabled: Bool, inConfigAt configIndex: Int) {
+    func setServer(_ server: ServerModel, enabled: Bool) {
         guard let index = servers.firstIndex(where: { $0.id == server.id }) else { return }
 
-        var updated = servers[index]
-        let configIndex = max(0, min(configIndex, 1))
+        guard servers[index].enabled != enabled else { return }
 
-        while updated.inConfigs.count <= configIndex {
-            updated.inConfigs.append(false)
-        }
-
-        guard updated.inConfigs[configIndex] != enabled else { return }
-
-        updated.inConfigs[configIndex] = enabled
-        updated.updatedAt = Date()
-        servers[index] = updated
+        servers[index].enabled = enabled
+        servers[index].updatedAt = Date()
 
         syncToConfigs()
-
-        // Also sync to widget if this server is shown there
-        if updated.showInWidget {
-            syncToWidget()
-        }
 
         let status = enabled ? "enabled" : "disabled"
         showToast(message: "\(server.name) \(status)", type: .success)
@@ -620,11 +663,10 @@ class ServerViewModel: ObservableObject {
     }
 
     func toggleAllServers(_ enable: Bool) {
-        let configIndex = settings.activeConfigIndex
         let now = Date()
 
         for i in 0..<servers.count {
-            servers[i].inConfigs[configIndex] = enable
+            servers[i].enabled = enable
             servers[i].updatedAt = now
         }
 
@@ -635,59 +677,14 @@ class ServerViewModel: ObservableObject {
         showToast(message: "All servers \(status)", type: .success)
     }
 
-    // MARK: - Widget Integration
-
-    /// Toggle whether a server appears in the macOS widget
-    func toggleShowInWidget(_ server: ServerModel) {
-        guard let index = servers.firstIndex(where: { $0.id == server.id }) else { return }
-
-        let currentWidgetCount = servers.filter { $0.showInWidget }.count
-
-        // If trying to add and already at max, show warning
-        if !servers[index].showInWidget && currentWidgetCount >= SharedDataManager.maxWidgetServers {
-            showToast(message: "Maximum \(SharedDataManager.maxWidgetServers) servers can be shown in widget", type: .warning)
-            return
-        }
-
-        servers[index].showInWidget.toggle()
-        servers[index].updatedAt = Date()
-
-        // Update cache
-        UserDefaults.standard.cachedServers = servers
-
-        // Sync to widget
-        syncToWidget()
-
-        let status = servers[index].showInWidget ? "added to" : "removed from"
-        showToast(message: "\(server.name) \(status) widget", type: .success)
-    }
-
-    /// Sync servers marked for widget to shared storage
-    func syncToWidget() {
-        let widgetServers = servers
-            .filter { $0.showInWidget }
-            .prefix(SharedDataManager.maxWidgetServers)
-            .map { server in
-                SharedDataManager.WidgetServer(
-                    id: server.id,
-                    name: server.name,
-                    isEnabled: server.inConfigs[safe: settings.activeConfigIndex] ?? false,
-                    configIndex: settings.activeConfigIndex,
-                    inConfigs: server.inConfigs
-                )
-            }
-
-        SharedDataManager.shared.saveWidgetServers(Array(widgetServers))
-    }
-
     // MARK: - Import/Export
 
     func exportServers() -> String {
-        configManager.exportServers(from: servers, configIndex: settings.activeConfigIndex)
+        configManager.exportServers(from: servers)
     }
 
     func activeConfigServersJSON() -> String {
-        configManager.exportServers(from: servers, configIndex: settings.activeConfigIndex)
+        configManager.exportServers(from: servers)
     }
 
     func testConnection(to path: String) async -> Result<Int, Error> {

@@ -65,8 +65,28 @@ else
     echo "⚠️ Resource bundle not found! Fonts may be missing."
 fi
 
+# Embed Sparkle.framework (required at runtime, otherwise dyld crash on launch)
+echo "📦 Embedding Sparkle.framework..."
+mkdir -p build/MCP-Server-Manager.app/Contents/Frameworks
+if [ -d ".build/release/Sparkle.framework" ]; then
+    cp -R .build/release/Sparkle.framework build/MCP-Server-Manager.app/Contents/Frameworks/
+    # Ensure the executable can locate embedded frameworks
+    install_name_tool -add_rpath "@executable_path/../Frameworks" \
+        build/MCP-Server-Manager.app/Contents/MacOS/MCPServerManager 2>/dev/null || true
+    echo "✅ Embedded Sparkle.framework"
+else
+    echo "⚠️ Sparkle.framework not found! App will crash on launch."
+fi
+
 echo "✍️  Code signing..."
 cd build
+
+# Sign embedded Sparkle.framework first (nested code must be signed before the app)
+if [ -d "MCP-Server-Manager.app/Contents/Frameworks/Sparkle.framework" ]; then
+    codesign --force --options runtime \
+      --sign "Developer ID Application: Nikhil Anand (NW6B3R27LQ)" \
+      MCP-Server-Manager.app/Contents/Frameworks/Sparkle.framework
+fi
 
 # Sign the app with local dev entitlements (non-sandboxed)
 codesign --deep --force --verify --verbose \

@@ -30,11 +30,5 @@
     <!-- Hardened Runtime flags (required for notarization) -->
     <key>com.apple.security.cs.disable-executable-page-protection</key>
     <true/>
-
-    <!-- App Groups - for widget communication (required even without sandbox for consistency) -->
-    <key>com.apple.security.application-groups</key>
-    <array>
-        <string>group.com.anand-92.mcp-panel</string>
-    </array>
 </dict>
 </plist>

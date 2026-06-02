@@ -7,6 +7,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- **Live Config Watching** - The app now watches your config file and reloads automatically when it changes on disk (edited by another tool, CLI, or editor). Debounced and resilient to atomic saves; no more stale views.
+- **JSON Syntax Highlighting** - Server config previews and the inline editor now render theme-aware, syntax-highlighted JSON (keys, strings, numbers, booleans/null, and punctuation), with caching for smooth scrolling.
+- **Inline Rename** - Edit a server's top-level JSON key in the card editor to rename it; collisions and empty names are rejected with a clear message.
+- **Transport Badge** - Each server card shows a transport badge (stdio / HTTP / SSE) at a glance, plus a context menu (Edit, Copy JSON, Delete) and improved accessibility labels.
+
+### Changed
+- **Single Config Model** - Simplified to a single active configuration. A server is either enabled (present in the config) or not, replacing the previous dual-config enabled-state arrays.
+- **⌘R Reloads From Disk** - The refresh button and ⌘R now reload servers from the config file instead of re-writing it.
+- **Real "Recent" Filter** - The Recent filter now shows servers modified within the last 24 hours, most-recent first.
+- **Renamed to "MCP Panel"** - User-facing app name updated throughout the UI.
+- **Normal Dock App** - The app now shows in the Dock like a standard macOS app (activation policy `.regular`) while keeping the menu bar icon, instead of running as an accessory/menu-bar-only app.
+
+### Removed
+- **macOS Widget** - Removed the WidgetKit extension entirely (widget target, App Intents toggle, "Show in Widget" card button, and shared-storage sync). The app and its menu bar integration remain. The App Groups entitlement (`group.com.anand-92.mcp-panel`) is no longer needed; security-scoped bookmarks now live in standard app storage.
+- **Gemini CLI Support** - Removed the Gemini CLI config, theme, config switcher, and related menu-bar UI. The app now focuses on a single Claude Code config.
+
+### Added
 - **Menu Bar Mode** - Access MCP servers from the menu bar! Enable in Settings → Menu Bar to add a status bar icon with popover for quick server toggling. Optionally hide the Dock icon for a minimal, always-accessible experience.
 - **macOS Widget Support** - WidgetKit extension for Control Center widgets. Mark servers with "Show in Widget" to display them in small/medium/large widget sizes. Interactive toggles on macOS 14+ (uses App Intents).
 - **"Show in Widget" Feature** - New widget icon button on server cards to control which servers appear in the macOS widget. Maximum 8 servers can be displayed.

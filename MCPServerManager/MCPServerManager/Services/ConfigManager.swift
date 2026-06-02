@@ -178,9 +178,9 @@ class ConfigManager {
 
     // MARK: - Export
 
-    func exportServers(from servers: [ServerModel], configIndex: Int) -> String {
+    func exportServers(from servers: [ServerModel]) -> String {
         let filteredServers = servers
-            .filter { $0.inConfigs[safe: configIndex] ?? false }
+            .filter { $0.enabled }
             .reduce(into: [String: ServerConfig]()) { $0[$1.name] = $1.config }
 
         return encodeToJSON(ConfigFile(mcpServers: filteredServers)) ?? "{\n  \"mcpServers\" : {}\n}"

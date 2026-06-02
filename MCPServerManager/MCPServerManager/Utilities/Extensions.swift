@@ -12,8 +12,6 @@ extension String {
         // Smart naming based on parent folder/filename
         if self.contains(".claude.json") {
             return "Claude Code"
-        } else if self.contains("/.gemini/") || self.hasSuffix(".gemini.json") {
-            return "Gemini CLI"
         }
 
         // Fallback to filename
