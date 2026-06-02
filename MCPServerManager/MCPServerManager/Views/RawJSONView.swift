@@ -3,6 +3,7 @@ import SwiftUI
 struct RawJSONView: View {
     @ObservedObject var viewModel: ServerViewModel
     @Environment(\.themeColors) private var themeColors
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var jsonText: String = ""
     @State private var isDirty: Bool = false
     @State private var errorMessage: String = ""
@@ -63,17 +64,23 @@ struct RawJSONView: View {
                 .padding(.horizontal, 20)
             }
 
-            // Text editor
-            TextEditor(text: $jsonText)
-                .font(DesignTokens.Typography.codeLarge)
-                .scrollContentBackground(.hidden)
-                .background(Color.black.opacity(0.3))
-                .padding(20)
-                .focusable(true)
-                .blur(radius: (viewModel.settings.blurJSONPreviews && !isDirty) ? DesignTokens.jsonPreviewBlurRadius : 0)
-                .onChange(of: jsonText) { newValue in
-                    isDirty = newValue != serversToJSON()
-                }
+            // Syntax-highlighted JSON editor
+            JSONCodeEditor(
+                text: $jsonText,
+                themeColors: themeColors,
+                fontSize: 15,
+                reduceTransparency: reduceTransparency
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(themeColors.borderColor, lineWidth: 1)
+            )
+            .padding(20)
+            .blur(radius: (viewModel.settings.blurJSONPreviews && !isDirty) ? DesignTokens.jsonPreviewBlurRadius : 0)
+            .onChange(of: jsonText) { newValue in
+                isDirty = newValue != serversToJSON()
+            }
 
             // Action buttons
             HStack(spacing: 12) {
