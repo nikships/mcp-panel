@@ -25,6 +25,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **macOS Widget** - Removed the WidgetKit extension entirely (widget target, App Intents toggle, "Show in Widget" card button, and shared-storage sync). The app and its menu bar integration remain. The App Groups entitlement (`group.com.anand-92.mcp-panel`) is no longer needed; security-scoped bookmarks now live in standard app storage.
 - **Gemini CLI Support** - Removed the Gemini CLI config, theme, config switcher, and related menu-bar UI. The app now focuses on a single Claude Code config.
 
+### Fixed
+- **Escaped Slashes in JSON** - Forward slashes are no longer rendered as `\/` in the editors or written to the config file (e.g. `@scope\/pkg` now shows as `@scope/pkg`). JSON formatting is now consistent across the card editor, Raw JSON editor, and Add Server modal.
+
 ### Added
 - **Menu Bar Mode** - Access MCP servers from the menu bar! Enable in Settings → Menu Bar to add a status bar icon with popover for quick server toggling. Optionally hide the Dock icon for a minimal, always-accessible experience.
 - **macOS Widget Support** - WidgetKit extension for Control Center widgets. Mark servers with "Show in Widget" to display them in small/medium/large widget sizes. Interactive toggles on macOS 14+ (uses App Intents).

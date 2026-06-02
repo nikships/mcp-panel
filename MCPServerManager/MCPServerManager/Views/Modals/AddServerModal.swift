@@ -205,17 +205,10 @@ struct AddServerModal: View {
     // MARK: - JSON Operations
 
     private func formatJSON() {
-        let normalized = jsonText.normalizingQuotes()
-
-        guard let data = normalized.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: data),
-              let formatted = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]),
-              let result = String(data: formatted, encoding: .utf8)
-        else {
+        guard let result = JSONFormatter.prettyPrinted(jsonText) else {
             errorMessage = "Invalid JSON format (after normalizing quotes)"
             return
         }
-
         jsonText = result
         errorMessage = ""
     }

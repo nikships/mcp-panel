@@ -329,15 +329,7 @@ struct ServerCardView: View {
     }
 
     private func formatJSON(_ string: String) -> String {
-        let normalized = string.normalizingQuotes()
-
-        guard let data = normalized.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: data),
-              let formatted = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]),
-              let result = String(data: formatted, encoding: .utf8) else {
-            return string
-        }
-        return result
+        JSONFormatter.prettyPrinted(string) ?? string
     }
 }
 

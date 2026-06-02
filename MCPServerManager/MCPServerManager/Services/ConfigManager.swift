@@ -83,7 +83,8 @@ class ConfigManager {
         json["mcpServers"] = mcpServers
 
         let outputData = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys])
-        try outputData.write(to: url)
+        let output = String(decoding: outputData, as: UTF8.self).unescapingJSONSlashes()
+        try output.write(to: url, atomically: true, encoding: .utf8)
     }
 
     private func normalizeForDroid(_ config: ServerConfig) -> ServerConfig {
@@ -188,7 +189,7 @@ class ConfigManager {
 
     private func encodeToJSON<T: Encodable>(_ value: T) -> String? {
         let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
 
         guard let data = try? encoder.encode(value) else { return nil }
         return String(data: data, encoding: .utf8)

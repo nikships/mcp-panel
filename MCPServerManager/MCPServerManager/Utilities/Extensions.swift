@@ -19,6 +19,13 @@ extension String {
         return String(components.last ?? "")
     }
 
+    /// `JSONSerialization` always escapes "/" as "\/", which is valid but noisy in the editors.
+    /// Strip that escaping. This is safe: a literal backslash is emitted as "\\", so the only
+    /// place "\" is immediately followed by "/" in valid JSON output is an escaped solidus.
+    func unescapingJSONSlashes() -> String {
+        replacingOccurrences(of: "\\/", with: "/")
+    }
+
     /// Normalize various quotation mark styles to standard straight quotes
     /// Handles curly quotes commonly pasted from Notes, Word, Slack, etc.
     func normalizingQuotes() -> String {
@@ -33,6 +40,22 @@ extension String {
             .replacingOccurrences(of: "\u{00BB}", with: "\"")  // Right-pointing double angle quotation mark
             .replacingOccurrences(of: "\u{2039}", with: "'")   // Single left-pointing angle quotation mark
             .replacingOccurrences(of: "\u{203A}", with: "'")   // Single right-pointing angle quotation mark
+    }
+}
+
+// MARK: - JSON Formatting
+
+enum JSONFormatter {
+    /// Pretty-print a JSON string (sorted keys, unescaped slashes), normalizing curly quotes first.
+    /// Returns nil if the input isn't valid JSON.
+    static func prettyPrinted(_ string: String) -> String? {
+        guard let data = string.normalizingQuotes().data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data),
+              let formatted = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]),
+              let result = String(data: formatted, encoding: .utf8) else {
+            return nil
+        }
+        return result.unescapingJSONSlashes()
     }
 }
 
