@@ -28,6 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Gemini CLI Support** - Removed the Gemini CLI config, theme, config switcher, and related menu-bar UI. The app now focuses on a single Claude Code config.
 
 ### Fixed
+- **Reopen Window from Menu Bar** - "Open App" in the menu bar (and clicking the Dock icon) now reliably reopens the main window after it's been closed. The app now uses a single `Window` scene so the window can be re-created on demand.
 - **Escaped Slashes in JSON** - Forward slashes are no longer rendered as `\/` in the editors or written to the config file (e.g. `@scope\/pkg` now shows as `@scope/pkg`). JSON formatting is now consistent across the card editor, Raw JSON editor, and Add Server modal.
 
 ### Added

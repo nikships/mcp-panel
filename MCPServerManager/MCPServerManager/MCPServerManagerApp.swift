@@ -6,15 +6,22 @@ import Sparkle
 
 @main
 struct MCPServerManagerApp: App {
+    static let mainWindowID = "main"
+
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var updateChecker = UpdateChecker.shared
+    @Environment(\.openWindow) private var openWindow
 
     var body: some Scene {
-        WindowGroup {
+        // A single Window (not WindowGroup) so the window can be reliably reopened
+        // from the menu bar after it's closed (WindowGroup destroys the window on close).
+        Window("MCP Panel", id: MCPServerManagerApp.mainWindowID) {
             ContentView()
                 .environmentObject(appDelegate)
                 .preferredColorScheme(.dark)
                 .onAppear {
+                    // Give the AppKit menu-bar controller a way to reopen this window.
+                    appDelegate.openMainWindow = { openWindow(id: MCPServerManagerApp.mainWindowID) }
                     // Ensure window accepts keyboard input
                     NSApp.activate(ignoringOtherApps: true)
                 }
@@ -50,13 +57,7 @@ struct MCPServerManagerApp: App {
             // Window menu to reopen the main window (Apple Review requirement)
             CommandGroup(after: .windowArrangement) {
                 Button("MCP Panel") {
-                    // Bring existing window to front or create new one
-                    if let window = NSApp.windows.first(where: { $0.title.isEmpty || $0.title == "MCP Server Manager" }) {
-                        window.makeKeyAndOrderFront(nil)
-                    } else {
-                        // If no window exists, create one by activating the app
-                        NSApp.activate(ignoringOtherApps: true)
-                    }
+                    appDelegate.showMainWindow()
                 }
                 .keyboardShortcut("0", modifiers: [.command])
             }
@@ -66,6 +67,27 @@ struct MCPServerManagerApp: App {
 
 class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     var menuBarController: MenuBarController?
+
+    /// Set by the SwiftUI scene; opens (and re-creates if needed) the main window.
+    var openMainWindow: (() -> Void)?
+
+    /// Bring the main window to front, re-creating it if it was closed.
+    @MainActor
+    func showMainWindow() {
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+
+        // Reuse an existing main window if one is still around.
+        if let window = NSApp.windows.first(where: { window in
+            window.className != "NSStatusBarWindow" && !(window is MenuBarPanel)
+        }) {
+            window.makeKeyAndOrderFront(nil)
+            window.orderFrontRegardless()
+        } else {
+            // Window was closed/destroyed: ask SwiftUI to open a fresh one.
+            openMainWindow?()
+        }
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Register custom fonts (Poppins & Crimson Pro)
@@ -84,6 +106,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return false // Never quit when window closes - we're a menu bar app now
     }
+
+
 
     // MARK: - Menu Bar Setup
 
@@ -179,8 +203,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     // Handle reopening when user clicks dock icon with no windows open
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !flag {
-            // No visible windows, activate to create one
-            NSApp.activate(ignoringOtherApps: true)
+            // No visible windows: reopen (re-creating if needed).
+            MainActor.assumeIsolated { showMainWindow() }
         }
         return true
     }

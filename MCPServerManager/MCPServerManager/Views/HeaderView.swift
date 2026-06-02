@@ -186,17 +186,6 @@ private struct SearchField: View {
                 .transition(.scale.combined(with: .opacity))
                 .accessibilityLabel("Clear search")
             }
-
-            Text("⌘F")
-                .font(DesignTokens.Typography.captionSmall)
-                .foregroundColor(themeColors.mutedText)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(themeColors.glassBackground)
-                )
-                .opacity(text.isEmpty && !isFocused ? 1 : 0)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
