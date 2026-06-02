@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 - **Live Config Watching** - The app now watches your config file and reloads automatically when it changes on disk (edited by another tool, CLI, or editor). Debounced and resilient to atomic saves; no more stale views.
-- **JSON Syntax Highlighting** - Server config previews and the inline editor now render theme-aware, syntax-highlighted JSON (keys, strings, numbers, booleans/null, and punctuation), with caching for smooth scrolling.
+- **JSON Syntax Highlighting** - Server config previews, the inline card editor, and the Raw JSON editor now render theme-aware, syntax-highlighted JSON (keys, strings, numbers, booleans/null, and punctuation), with caching for smooth scrolling.
 - **Inline Rename** - Edit a server's top-level JSON key in the card editor to rename it; collisions and empty names are rejected with a clear message.
 - **Transport Badge** - Each server card shows a transport badge (stdio / HTTP / SSE) at a glance, plus a context menu (Edit, Copy JSON, Delete) and improved accessibility labels.
 
@@ -19,6 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Renamed to "MCP Panel"** - User-facing app name updated throughout the UI.
 - **Normal Dock App** - The app now shows in the Dock like a standard macOS app (activation policy `.regular`) while keeping the menu bar icon, instead of running as an accessory/menu-bar-only app.
 - **Simplified Theme Setting** - Removed the "Auto (Detect from Config)" theme option; the app now defaults to the Claude Code theme, and you can pick any of the built-in themes directly.
+- **Claude Logo in Header** - The active-config badge now shows the Claude logo (tinted to the theme accent) for a `.claude.json` config instead of the "Claude Code" text label.
 
 ### Removed
 - **macOS Widget** - Removed the WidgetKit extension entirely (widget target, App Intents toggle, "Show in Widget" card button, and shared-storage sync). The app and its menu bar integration remain. The App Groups entitlement (`group.com.anand-92.mcp-panel`) is no longer needed; security-scoped bookmarks now live in standard app storage.

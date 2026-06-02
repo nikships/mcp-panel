@@ -111,16 +111,29 @@ private struct ActiveConfigLabel: View {
     let path: String
     let themeColors: ThemeColors
 
+    private var isClaudeConfig: Bool {
+        path.contains(".claude.json")
+    }
+
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: "doc.text")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(themeColors.primaryAccent)
+            if isClaudeConfig, let logo = ServiceLogo.claude {
+                Image(nsImage: logo)
+                    .resizable()
+                    .renderingMode(.template)
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 16, height: 16)
+                    .foregroundColor(themeColors.primaryAccent)
+            } else {
+                Image(systemName: "doc.text")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(themeColors.primaryAccent)
 
-            Text(path.shortPath())
-                .font(DesignTokens.Typography.label)
-                .foregroundColor(themeColors.secondaryText)
-                .lineLimit(1)
+                Text(path.shortPath())
+                    .font(DesignTokens.Typography.label)
+                    .foregroundColor(themeColors.secondaryText)
+                    .lineLimit(1)
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
@@ -133,7 +146,7 @@ private struct ActiveConfigLabel: View {
                 )
         )
         .help(path)
-        .accessibilityLabel("Active config: \(path)")
+        .accessibilityLabel(isClaudeConfig ? "Active config: Claude Code (\(path))" : "Active config: \(path)")
     }
 }
 

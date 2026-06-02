@@ -84,3 +84,32 @@ enum AppIcon {
         return NSApp.applicationIconImage ?? NSImage()
     }
 }
+
+// MARK: - Bundled Service Logos
+
+/// Loads bundled service logos (Claude, Codex) from the SPM resource bundle.
+/// Logos are monochrome template PNGs intended to be tinted at render time.
+enum ServiceLogo {
+    static let claude = load("icon-claude")
+    static let codex = load("icon-codex")
+
+    private static func load(_ name: String) -> NSImage? {
+        let bundleName = "MCPServerManager_MCPServerManager"
+
+        if let resourceURL = Bundle.main.resourceURL,
+           let bundle = Bundle(url: resourceURL.appendingPathComponent("\(bundleName).bundle")),
+           let url = bundle.url(forResource: name, withExtension: "png"),
+           let image = NSImage(contentsOf: url) {
+            image.isTemplate = true
+            return image
+        }
+
+        if let url = Bundle.main.url(forResource: name, withExtension: "png"),
+           let image = NSImage(contentsOf: url) {
+            image.isTemplate = true
+            return image
+        }
+
+        return nil
+    }
+}
