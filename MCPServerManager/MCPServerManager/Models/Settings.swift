@@ -7,7 +7,7 @@ struct AppSettings: Codable, Equatable {
     var configPath: String
     var droidConfigPath: String?
     var blurJSONPreviews: Bool
-    var overrideTheme: String? // nil = auto-detect, otherwise use the theme name
+    var overrideTheme: String? // nil = default (Claude Code) theme, otherwise the theme name
 
     // Menu Bar Mode settings
     var menuBarModeEnabled: Bool

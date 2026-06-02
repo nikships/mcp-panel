@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Real "Recent" Filter** - The Recent filter now shows servers modified within the last 24 hours, most-recent first.
 - **Renamed to "MCP Panel"** - User-facing app name updated throughout the UI.
 - **Normal Dock App** - The app now shows in the Dock like a standard macOS app (activation policy `.regular`) while keeping the menu bar icon, instead of running as an accessory/menu-bar-only app.
+- **Simplified Theme Setting** - Removed the "Auto (Detect from Config)" theme option; the app now defaults to the Claude Code theme, and you can pick any of the built-in themes directly.
 
 ### Removed
 - **macOS Widget** - Removed the WidgetKit extension entirely (widget target, App Intents toggle, "Show in Widget" card button, and shared-storage sync). The app and its menu bar integration remain. The App Groups entitlement (`group.com.anand-92.mcp-panel`) is no longer needed; security-scoped bookmarks now live in standard app storage.

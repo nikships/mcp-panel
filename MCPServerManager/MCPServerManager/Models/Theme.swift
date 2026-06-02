@@ -3,7 +3,6 @@ import SwiftUI
 // MARK: - Theme Type
 
 enum AppTheme: String, CaseIterable {
-    case auto = "Auto (Detect from Config)"
     case claudeCode = "Claude Code"
     case `default` = "Default (Cyberpunk)"
     case nord = "Nord"
@@ -17,17 +16,6 @@ enum AppTheme: String, CaseIterable {
     case catppuccin = "Catppuccin Mocha"
     case gruvbox = "Gruvbox Dark"
     case palenight = "Material Palenight"
-
-    // Detect theme from config path
-    static func detect(from configPath: String) -> AppTheme {
-        let lowercased = configPath.lowercased()
-
-        if lowercased.contains("claude") {
-            return .claudeCode
-        } else {
-            return .default
-        }
-    }
 }
 
 // MARK: - Theme Colors
@@ -585,8 +573,6 @@ struct ThemeColors {
     // Get theme colors for a specific theme type
     static func forTheme(_ theme: AppTheme) -> ThemeColors {
         switch theme {
-        case .auto:
-            return .default // Will be overridden by detection logic
         case .claudeCode:
             return .claudeCode
         case .default:
@@ -654,7 +640,7 @@ private struct ThemeColorsKey: EnvironmentKey {
 }
 
 private struct CurrentThemeKey: EnvironmentKey {
-    static let defaultValue: AppTheme = .default
+    static let defaultValue: AppTheme = .claudeCode
 }
 
 extension EnvironmentValues {

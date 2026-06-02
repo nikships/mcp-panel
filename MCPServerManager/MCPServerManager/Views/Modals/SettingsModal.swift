@@ -43,7 +43,7 @@ struct SettingsModal: View {
     @State private var confirmDelete: Bool = true
     @State private var fetchServerLogos: Bool = true
     @State private var blurJSONPreviews: Bool = false
-    @State private var selectedTheme: AppTheme = .auto
+    @State private var selectedTheme: AppTheme = .claudeCode
     @State private var testingConnection: Bool = false
     @State private var testResult: String = ""
     @State private var showBookmarkAlert: Bool = false
@@ -267,54 +267,20 @@ struct SettingsModal: View {
             // Theme Selection
             SettingsSectionCard(title: "Theme", icon: "paintpalette.fill") {
                 VStack(alignment: .leading, spacing: 16) {
-                    // Auto mode toggle
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Auto-detect from Config")
-                                .font(DesignTokens.Typography.label)
-                                .foregroundColor(themeColors.primaryText)
+                    Text("Select Theme")
+                        .font(DesignTokens.Typography.labelSmall)
+                        .foregroundColor(themeColors.mutedText)
+                        .textCase(.uppercase)
+                        .tracking(0.5)
 
-                            Text("Uses the Claude Code theme based on your config")
-                                .font(DesignTokens.Typography.caption)
-                                .foregroundColor(themeColors.mutedText)
+                    ThemePickerGrid(
+                        selectedTheme: $selectedTheme,
+                        onThemeSelected: { theme in
+                            selectedTheme = theme
+                            viewModel.settings.overrideTheme = theme.rawValue
+                            viewModel.saveSettings()
                         }
-
-                        Spacer()
-
-                        Toggle("", isOn: Binding(
-                            get: { selectedTheme == .auto },
-                            set: { newValue in
-                                if newValue {
-                                    selectedTheme = .auto
-                                } else {
-                                    // Default to first non-auto theme when disabling auto
-                                    selectedTheme = .claudeCode
-                                }
-                            }
-                        ))
-                        .toggleStyle(.switch)
-                        .labelsHidden()
-                    }
-
-                    if selectedTheme != .auto {
-                        Divider().opacity(0.3)
-
-                        // Theme Grid
-                        Text("Select Theme")
-                            .font(DesignTokens.Typography.labelSmall)
-                            .foregroundColor(themeColors.mutedText)
-                            .textCase(.uppercase)
-                            .tracking(0.5)
-
-                        ThemePickerGrid(
-                            selectedTheme: $selectedTheme,
-                            onThemeSelected: { theme in
-                                selectedTheme = theme
-                                viewModel.settings.overrideTheme = theme == .auto ? nil : theme.rawValue
-                                viewModel.saveSettings()
-                            }
-                        )
-                    }
+                    )
                 }
             }
         }
@@ -457,7 +423,7 @@ struct SettingsModal: View {
            let theme = AppTheme(rawValue: themeStr) {
             selectedTheme = theme
         } else {
-            selectedTheme = .auto
+            selectedTheme = .claudeCode
         }
     }
 
@@ -520,7 +486,7 @@ struct SettingsModal: View {
         confirmDelete = true
         fetchServerLogos = true
         blurJSONPreviews = false
-        selectedTheme = .auto
+        selectedTheme = .claudeCode
         launchAtLogin = false
     }
 
@@ -532,7 +498,7 @@ struct SettingsModal: View {
         viewModel.settings.blurJSONPreviews = blurJSONPreviews
         UserDefaults.standard.set(fetchServerLogos, forKey: "fetchServerLogos")
 
-        viewModel.settings.overrideTheme = selectedTheme == .auto ? nil : selectedTheme.rawValue
+        viewModel.settings.overrideTheme = selectedTheme.rawValue
         viewModel.settings.launchAtLogin = launchAtLogin
         viewModel.saveSettings()
 
@@ -713,8 +679,7 @@ private struct ThemePickerGrid: View {
 
     @Environment(\.themeColors) private var themeColors
 
-    // All themes except .auto (handled separately)
-    private let themes: [AppTheme] = AppTheme.allCases.filter { $0 != .auto }
+    private let themes: [AppTheme] = AppTheme.allCases
 
     private let columns = [
         GridItem(.adaptive(minimum: 100, maximum: 120), spacing: 10)

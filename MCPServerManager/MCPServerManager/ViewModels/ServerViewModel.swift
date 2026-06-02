@@ -27,14 +27,12 @@ class ServerViewModel: ObservableObject {
     // MARK: - Theme Detection
 
     var currentTheme: AppTheme {
-        // If override theme is set, use it (unless it's "auto")
+        // Use the user's chosen theme, defaulting to the Claude Code theme.
         if let overrideThemeStr = settings.overrideTheme,
-           let overrideTheme = AppTheme(rawValue: overrideThemeStr),
-           overrideTheme != .auto {
+           let overrideTheme = AppTheme(rawValue: overrideThemeStr) {
             return overrideTheme
         }
-        // Otherwise, auto-detect from config path
-        return AppTheme.detect(from: settings.configPath)
+        return .claudeCode
     }
 
     var themeColors: ThemeColors {
