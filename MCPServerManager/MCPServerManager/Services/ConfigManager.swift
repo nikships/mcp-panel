@@ -83,7 +83,10 @@ class ConfigManager {
         json["mcpServers"] = mcpServers
 
         let outputData = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys])
-        let output = String(decoding: outputData, as: UTF8.self).unescapingJSONSlashes()
+        guard let decoded = String(bytes: outputData, encoding: .utf8) else {
+            throw CocoaError(.fileWriteInapplicableStringEncoding)
+        }
+        let output = decoded.unescapingJSONSlashes()
         try output.write(to: url, atomically: true, encoding: .utf8)
     }
 

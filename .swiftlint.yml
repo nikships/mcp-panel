@@ -1,0 +1,90 @@
+# SwiftLint configuration for MCP Panel
+# Docs: https://github.com/realm/SwiftLint
+#
+# Run locally:    swiftlint           (from the repo root)
+# Autocorrect:    swiftlint --fix
+
+included:
+  - MCPServerManager/MCPServerManager
+
+excluded:
+  - MCPServerManager/.build
+  - MCPServerManager/build
+  - build
+
+# Opt-in rules that add real value for a SwiftUI codebase.
+opt_in_rules:
+  - empty_count
+  - empty_string
+  - first_where
+  - last_where
+  - contains_over_first_not_nil
+  - sorted_first_last
+  - redundant_nil_coalescing
+  - closure_spacing
+  - explicit_init
+  - fatal_error_message
+  - operator_usage_whitespace
+  - unneeded_parentheses_in_closure_argument
+  - vertical_parameter_alignment_on_call
+  - multiline_arguments
+  - toggle_bool
+  - force_unwrapping
+  - overridden_super_call
+  - prohibited_super_call
+
+# --- Complexity & size thresholds -------------------------------------------
+# Warn early to surface growing complexity; error only on egregious cases so CI
+# stays actionable rather than perpetually red.
+
+cyclomatic_complexity:
+  warning: 15
+  error: 25
+
+file_length:
+  warning: 600
+  error: 1000
+  ignore_comment_only_lines: true
+
+type_body_length:
+  warning: 500
+  error: 800
+
+function_body_length:
+  warning: 80
+  error: 150
+
+line_length:
+  warning: 140
+  error: 200
+  ignores_comments: true
+  ignores_urls: true
+
+# --- Naming -----------------------------------------------------------------
+
+identifier_name:
+  min_length:
+    warning: 2
+  excluded:
+    - id
+    - x
+    - y
+    - up
+
+type_name:
+  max_length:
+    warning: 50
+    error: 60
+
+# --- Tech-debt visibility ---------------------------------------------------
+# Keep TODO/FIXME markers as warnings so technical debt is tracked in CI output
+# instead of silently accumulating.
+todo: warning
+
+# Unsafe-unwrap family: keep as warnings so they show up in review without
+# blocking, encouraging safe optional handling over force operations.
+force_unwrapping: warning
+force_cast: warning
+force_try: warning
+
+reporter: "xcode"

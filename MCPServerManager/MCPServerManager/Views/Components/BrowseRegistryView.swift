@@ -39,10 +39,10 @@ struct BrowseRegistryView: View {
                 .textFieldStyle(.plain)
 
             if !searchText.isEmpty {
-                Button(action: { searchText = "" }) {
+                Button(action: { searchText = "" }, label: {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundColor(.secondary)
-                }
+                })
                 .buttonStyle(.plain)
             }
         }

@@ -19,7 +19,7 @@ struct ServerCardView: View {
     let onToggle: () -> Void
     let onTagToggle: (ServerTag) -> Void
     let onDelete: () -> Void
-    let onUpdate: (String) -> (success: Bool, invalidReason: String?, config: ServerConfig?)
+    let onUpdate: (String) -> ServerUpdateResult
     let onUpdateForced: (ServerConfig) -> Bool
     let onCustomIconSelected: ((Result<String, Error>) -> Void)?
 
@@ -63,7 +63,8 @@ struct ServerCardView: View {
                 handleForceSave()
             }
         } message: {
-            Text("This server has validation errors:\n\n\(invalidReason)\n\nDo you want to force save anyway? This will override all validations.")
+            Text("This server has validation errors:\n\n\(invalidReason)\n\n"
+                + "Do you want to force save anyway? This will override all validations.")
         }
     }
 
@@ -113,14 +114,14 @@ struct ServerCardView: View {
 
             Menu {
                 ForEach(ServerTag.allCases) { tag in
-                    Button(action: { onTagToggle(tag) }) {
+                    Button(action: { onTagToggle(tag) }, label: {
                         HStack {
                             Text(tag.rawValue)
                             if server.tags.contains(tag) {
                                 Image(systemName: "checkmark")
                             }
                         }
-                    }
+                    })
                 }
             } label: {
                 HStack(spacing: 4) {

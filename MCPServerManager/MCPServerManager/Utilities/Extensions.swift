@@ -98,7 +98,11 @@ enum AppIcon {
         // Try loading from SPM bundle (for swift run)
         if let bundleURL = Bundle.main.url(forResource: "MCPServerManager_MCPServerManager", withExtension: "bundle"),
            let bundle = Bundle(url: bundleURL),
-           let iconURL = bundle.url(forResource: "icon_512x512@2x", withExtension: "png", subdirectory: "Assets.xcassets/AppIcon.appiconset"),
+           let iconURL = bundle.url(
+               forResource: "icon_512x512@2x",
+               withExtension: "png",
+               subdirectory: "Assets.xcassets/AppIcon.appiconset"
+           ),
            let image = NSImage(contentsOf: iconURL) {
             return image
         }

@@ -176,10 +176,8 @@ struct DomainExtractor {
         }
 
         // Try partial matches
-        for (key, domain) in domainMappings {
-            if cleaned.contains(key) {
-                return domain
-            }
+        for (key, domain) in domainMappings where cleaned.contains(key) {
+            return domain
         }
 
         return nil
@@ -245,10 +243,8 @@ struct DomainExtractor {
         }
 
         // Try partial matches (e.g., "github-mcp" matches "github")
-        for (key, domain) in nameMappings {
-            if lowerName.contains(key) {
-                return domain
-            }
+        for (key, domain) in nameMappings where lowerName.contains(key) {
+            return domain
         }
 
         // Check if the name itself looks like a domain

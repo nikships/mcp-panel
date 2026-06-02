@@ -1,6 +1,20 @@
 import Foundation
 import SwiftUI
 
+/// Outcome of updating (or renaming) a single server from edited JSON.
+struct ServerUpdateResult {
+    let success: Bool
+    let invalidReason: String?
+    let config: ServerConfig?
+}
+
+/// Outcome of applying a full raw-JSON edit of the enabled server set.
+struct RawJSONApplyResult {
+    let success: Bool
+    let invalidServers: [String: String]?
+    let serverDict: [String: ServerConfig]?
+}
+
 @MainActor
 class ServerViewModel: ObservableObject {
     @Published var servers: [ServerModel] = []
@@ -360,7 +374,7 @@ class ServerViewModel: ObservableObject {
         return (entry.key, entry.value)
     }
 
-    func updateServer(_ server: ServerModel, with jsonString: String) -> (success: Bool, invalidReason: String?, config: ServerConfig?) {
+    func updateServer(_ server: ServerModel, with jsonString: String) -> ServerUpdateResult {
         // Detect a rename: a single named top-level key that differs from the current name.
         if let entry = parseNamedEntry(from: jsonString) {
             if entry.name != server.name {
@@ -368,13 +382,13 @@ class ServerViewModel: ObservableObject {
             }
             // Same name: treat as a value update using the entry's config.
             if !entry.config.isValid {
-                return (success: false, invalidReason: getInvalidReason(entry.config), config: entry.config)
+                return ServerUpdateResult(success: false, invalidReason: getInvalidReason(entry.config), config: entry.config)
             }
             guard applyServerUpdate(server, config: entry.config) else {
-                return (success: false, invalidReason: nil, config: nil)
+                return ServerUpdateResult(success: false, invalidReason: nil, config: nil)
             }
             showToast(message: "Server updated", type: .success)
-            return (success: true, invalidReason: nil, config: nil)
+            return ServerUpdateResult(success: true, invalidReason: nil, config: nil)
         }
 
         // Fall back to bare config object (value-only) parsing.
@@ -382,42 +396,46 @@ class ServerViewModel: ObservableObject {
             let config = try parseServerConfig(from: jsonString)
 
             if !config.isValid {
-                return (success: false, invalidReason: getInvalidReason(config), config: config)
+                return ServerUpdateResult(success: false, invalidReason: getInvalidReason(config), config: config)
             }
 
             guard applyServerUpdate(server, config: config) else {
-                return (success: false, invalidReason: nil, config: nil)
+                return ServerUpdateResult(success: false, invalidReason: nil, config: nil)
             }
 
             showToast(message: "Server updated", type: .success)
-            return (success: true, invalidReason: nil, config: nil)
+            return ServerUpdateResult(success: true, invalidReason: nil, config: nil)
         } catch {
             showToast(message: "Failed to update: \(error.localizedDescription)", type: .error)
-            return (success: false, invalidReason: nil, config: nil)
+            return ServerUpdateResult(success: false, invalidReason: nil, config: nil)
         }
     }
 
     /// Rename a server via its top-level JSON key. Validates the new name and re-keys.
-    private func renameServer(_ server: ServerModel, to newName: String, config: ServerConfig) -> (success: Bool, invalidReason: String?, config: ServerConfig?) {
+    private func renameServer(
+        _ server: ServerModel,
+        to newName: String,
+        config: ServerConfig
+    ) -> ServerUpdateResult {
         let trimmedName = newName.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard !trimmedName.isEmpty else {
             showToast(message: "Server name cannot be empty", type: .error)
-            return (success: false, invalidReason: nil, config: nil)
+            return ServerUpdateResult(success: false, invalidReason: nil, config: nil)
         }
 
         // Collision with a different server.
         if servers.contains(where: { $0.id != server.id && $0.name == trimmedName }) {
             showToast(message: "A server named '\(trimmedName)' already exists", type: .error)
-            return (success: false, invalidReason: nil, config: nil)
+            return ServerUpdateResult(success: false, invalidReason: nil, config: nil)
         }
 
         if !config.isValid {
-            return (success: false, invalidReason: getInvalidReason(config), config: config)
+            return ServerUpdateResult(success: false, invalidReason: getInvalidReason(config), config: config)
         }
 
         guard let index = servers.firstIndex(where: { $0.id == server.id }) else {
-            return (success: false, invalidReason: nil, config: nil)
+            return ServerUpdateResult(success: false, invalidReason: nil, config: nil)
         }
 
         servers[index].name = trimmedName
@@ -427,7 +445,7 @@ class ServerViewModel: ObservableObject {
         objectWillChange.send()
         syncToConfigs()
         showToast(message: "Renamed to '\(trimmedName)'", type: .success)
-        return (success: true, invalidReason: nil, config: nil)
+        return ServerUpdateResult(success: true, invalidReason: nil, config: nil)
     }
 
     func updateServerForced(_ server: ServerModel, with jsonString: String) -> Bool {
@@ -481,7 +499,7 @@ class ServerViewModel: ObservableObject {
         return true
     }
 
-    func applyRawJSON(_ jsonText: String) -> (success: Bool, invalidServers: [String: String]?, serverDict: [String: ServerConfig]?) {
+    func applyRawJSON(_ jsonText: String) -> RawJSONApplyResult {
         do {
             let serverDict = try parseServerDict(from: jsonText)
 
@@ -490,14 +508,14 @@ class ServerViewModel: ObservableObject {
             }
 
             if !invalidServers.isEmpty {
-                return (success: false, invalidServers: invalidServers, serverDict: serverDict)
+                return RawJSONApplyResult(success: false, invalidServers: invalidServers, serverDict: serverDict)
             }
 
             applyRawJSONInternal(serverDict: serverDict, forceMode: false)
-            return (success: true, invalidServers: nil, serverDict: nil)
+            return RawJSONApplyResult(success: true, invalidServers: nil, serverDict: nil)
         } catch {
             showToast(message: "Failed to parse JSON: \(error.localizedDescription)", type: .error)
-            return (success: false, invalidServers: nil, serverDict: nil)
+            return RawJSONApplyResult(success: false, invalidServers: nil, serverDict: nil)
         }
     }
 
@@ -528,8 +546,8 @@ class ServerViewModel: ObservableObject {
         let now = Date()
 
         // The raw editor represents the full enabled set: disable everything first.
-        for i in 0..<servers.count {
-            servers[i].enabled = false
+        for index in 0..<servers.count {
+            servers[index].enabled = false
         }
 
         // Add/update servers from JSON, marking them enabled.
@@ -561,57 +579,6 @@ class ServerViewModel: ObservableObject {
         servers.removeAll { $0.id == server.id }
         syncToConfigs()
         showToast(message: "Server deleted", type: .success)
-    }
-
-    // MARK: - Tags
-
-    func taggedServersCount(for tag: ServerTag) -> Int {
-        servers.filter { $0.tags.contains(tag) }.count
-    }
-
-    func enableServers(with tag: ServerTag) {
-        let now = Date()
-
-        let taggedServers = servers.enumerated().filter { $0.element.tags.contains(tag) }
-
-        guard !taggedServers.isEmpty else {
-            showToast(message: "No servers tagged \(tag.rawValue)", type: .warning)
-            return
-        }
-
-        let indicesToEnable = taggedServers
-            .filter { !servers[$0.offset].enabled }
-            .map { $0.offset }
-
-        guard !indicesToEnable.isEmpty else {
-            showToast(message: "All \(tag.rawValue) servers already enabled", type: .warning)
-            return
-        }
-
-        for index in indicesToEnable {
-            servers[index].enabled = true
-            servers[index].updatedAt = now
-        }
-
-        objectWillChange.send()
-        syncToConfigs()
-        showToast(message: "Enabled \(indicesToEnable.count) \(tag.rawValue) server(s)", type: .success)
-    }
-
-    func toggleTag(_ tag: ServerTag, for server: ServerModel) {
-        guard let index = servers.firstIndex(where: { $0.id == server.id }) else { return }
-
-        var updated = servers[index]
-        if let tagIndex = updated.tags.firstIndex(of: tag) {
-            updated.tags.remove(at: tagIndex)
-        } else {
-            updated.tags.append(tag)
-        }
-        updated.updatedAt = Date()
-        servers[index] = updated
-
-        // Tags are app metadata (local-only), so we only update the cache.
-        UserDefaults.standard.cachedServers = servers
     }
 
     func toggleServer(_ server: ServerModel) {
@@ -663,9 +630,9 @@ class ServerViewModel: ObservableObject {
     func toggleAllServers(_ enable: Bool) {
         let now = Date()
 
-        for i in 0..<servers.count {
-            servers[i].enabled = enable
-            servers[i].updatedAt = now
+        for index in 0..<servers.count {
+            servers[index].enabled = enable
+            servers[index].updatedAt = now
         }
 
         objectWillChange.send()
@@ -673,20 +640,6 @@ class ServerViewModel: ObservableObject {
 
         let status = enable ? "enabled" : "disabled"
         showToast(message: "All servers \(status)", type: .success)
-    }
-
-    // MARK: - Import/Export
-
-    func exportServers() -> String {
-        configManager.exportServers(from: servers)
-    }
-
-    func activeConfigServersJSON() -> String {
-        configManager.exportServers(from: servers)
-    }
-
-    func testConnection(to path: String) async -> Result<Int, Error> {
-        Result { try configManager.testConnection(to: path) }
     }
 
     // MARK: - Toast
@@ -709,5 +662,74 @@ class ServerViewModel: ObservableObject {
                 showToast = false
             }
         }
+    }
+}
+
+// MARK: - Tags
+
+extension ServerViewModel {
+    func taggedServersCount(for tag: ServerTag) -> Int {
+        servers.filter { $0.tags.contains(tag) }.count
+    }
+
+    func enableServers(with tag: ServerTag) {
+        let now = Date()
+
+        let taggedServers = servers.enumerated().filter { $0.element.tags.contains(tag) }
+
+        guard !taggedServers.isEmpty else {
+            showToast(message: "No servers tagged \(tag.rawValue)", type: .warning)
+            return
+        }
+
+        let indicesToEnable = taggedServers
+            .filter { !servers[$0.offset].enabled }
+            .map { $0.offset }
+
+        guard !indicesToEnable.isEmpty else {
+            showToast(message: "All \(tag.rawValue) servers already enabled", type: .warning)
+            return
+        }
+
+        for index in indicesToEnable {
+            servers[index].enabled = true
+            servers[index].updatedAt = now
+        }
+
+        objectWillChange.send()
+        syncToConfigs()
+        showToast(message: "Enabled \(indicesToEnable.count) \(tag.rawValue) server(s)", type: .success)
+    }
+
+    func toggleTag(_ tag: ServerTag, for server: ServerModel) {
+        guard let index = servers.firstIndex(where: { $0.id == server.id }) else { return }
+
+        var updated = servers[index]
+        if let tagIndex = updated.tags.firstIndex(of: tag) {
+            updated.tags.remove(at: tagIndex)
+        } else {
+            updated.tags.append(tag)
+        }
+        updated.updatedAt = Date()
+        servers[index] = updated
+
+        // Tags are app metadata (local-only), so we only update the cache.
+        UserDefaults.standard.cachedServers = servers
+    }
+}
+
+// MARK: - Import/Export
+
+extension ServerViewModel {
+    func exportServers() -> String {
+        configManager.exportServers(from: servers)
+    }
+
+    func activeConfigServersJSON() -> String {
+        configManager.exportServers(from: servers)
+    }
+
+    func testConnection(to path: String) async -> Result<Int, Error> {
+        Result { try configManager.testConnection(to: path) }
     }
 }

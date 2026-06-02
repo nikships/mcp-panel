@@ -5,8 +5,18 @@ import SwiftUI
 
 /// A custom NSPanel that supports transparency and vibrancy for menu bar dropdowns
 class MenuBarPanel: NSPanel {
-    override init(contentRect: NSRect, styleMask style: NSWindow.StyleMask, backing backingStoreType: NSWindow.BackingStoreType, defer flag: Bool) {
-        super.init(contentRect: contentRect, styleMask: [.nonactivatingPanel, .fullSizeContentView], backing: backingStoreType, defer: flag)
+    override init(
+        contentRect: NSRect,
+        styleMask style: NSWindow.StyleMask,
+        backing backingStoreType: NSWindow.BackingStoreType,
+        defer flag: Bool
+    ) {
+        super.init(
+            contentRect: contentRect,
+            styleMask: [.nonactivatingPanel, .fullSizeContentView],
+            backing: backingStoreType,
+            defer: flag
+        )
 
         // Hide title bar completely
         titlebarAppearsTransparent = true
@@ -91,7 +101,11 @@ class MenuBarController: NSObject {
             // Try to load from bundle (SPM copies assets here)
             if let bundleURL = Bundle.main.url(forResource: "MCPServerManager_MCPServerManager", withExtension: "bundle"),
                let bundle = Bundle(url: bundleURL),
-               let iconURL = bundle.url(forResource: "MenuBarIcon@2x", withExtension: "png", subdirectory: "Assets.xcassets/MenuBarIcon.imageset"),
+               let iconURL = bundle.url(
+                   forResource: "MenuBarIcon@2x",
+                   withExtension: "png",
+                   subdirectory: "Assets.xcassets/MenuBarIcon.imageset"
+               ),
                let image = NSImage(contentsOf: iconURL) {
                 menuBarIcon = image
             }

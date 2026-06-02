@@ -135,7 +135,8 @@ struct RawJSONView: View {
                 forceSave()
             }
         } message: {
-            Text("The following servers have validation errors:\n\n\(invalidServerDetails)\n\nDo you want to force save anyway? This will override all validations.")
+            Text("The following servers have validation errors:\n\n\(invalidServerDetails)\n\n"
+                + "Do you want to force save anyway? This will override all validations.")
         }
     }
 

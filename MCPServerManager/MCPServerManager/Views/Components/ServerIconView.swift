@@ -5,7 +5,7 @@ import AppKit
 struct ServerIconView: View {
     let server: ServerModel
     let size: CGFloat
-    var onCustomIconSelected: ((Result<String, Error>) -> Void)? = nil
+    var onCustomIconSelected: ((Result<String, Error>) -> Void)?
 
     @State private var logoImage: NSImage?
     @State private var isLoading = true

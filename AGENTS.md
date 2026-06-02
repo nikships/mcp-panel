@@ -24,11 +24,25 @@ cd MCPServerManager && swift build -c release  # Release binary (.build only)
 
 This machine has Command Line Tools only (no full Xcode), so `xcodebuild` is unavailable; use `swift build`. There is no automated test suite — verify changes by building and launching.
 
+### Linting
+
+```bash
+brew install swiftlint                                          # one-time
+DYLD_FRAMEWORK_PATH=/Library/Developer/CommandLineTools/usr/lib \
+  swiftlint lint --strict                                       # lint (CLT needs the framework path)
+swiftlint --fix                                                 # autocorrect fixable violations
+```
+
+- Config lives in `.swiftlint.yml` (rules tuned for this SwiftUI codebase: complexity, file/function length, line length, naming, `todo` tracking).
+- CI runs `swiftlint lint --strict` on every push/PR via `.github/workflows/lint.yml`; the repo is expected to stay at **zero** violations.
+- The `.githooks/pre-commit` hook also runs strict SwiftLint on commits when it is installed and SwiftLint is on PATH.
+
 ## Coding Style & Naming Conventions
 
 - Swift, 4-space indentation. Types `UpperCamelCase`, members `lowerCamelCase`.
 - Target macOS 13: avoid macOS 14+ APIs (two-parameter `.onChange`, `ContentUnavailableView`).
 - Use `Read`/`Edit`/`Create` tools for file changes, not shell.
+- Run SwiftLint before committing; keep the tree at zero violations (CI is strict).
 
 ## Commit & Pull Request Guidelines
 

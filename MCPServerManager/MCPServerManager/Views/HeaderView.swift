@@ -91,7 +91,12 @@ private struct AppLogoView: View {
                 .opacity(isHovered || showQuickActions ? 1 : 0)
                 .scaleEffect(isHovered || showQuickActions ? 1 : 0.5)
             }
-            .shadow(color: themeColors.primaryAccent.opacity(isHovered || showQuickActions ? 0.5 : 0.2), radius: isHovered ? 12 : 6, x: 0, y: 4)
+            .shadow(
+                color: themeColors.primaryAccent.opacity(isHovered || showQuickActions ? 0.5 : 0.2),
+                radius: isHovered ? 12 : 6,
+                x: 0,
+                y: 4
+            )
             .scaleEffect(isHovered ? 1.08 : 1.0)
         }
         .buttonStyle(.plain)

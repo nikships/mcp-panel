@@ -49,7 +49,8 @@ struct AddServerModal: View {
             Button("Cancel", role: .cancel) { clearPendingState() }
             Button("Force Save", action: forceSave)
         } message: {
-            Text("The following servers have validation errors:\n\n\(invalidServerDetails)\n\nDo you want to force save anyway? This will override all validations.")
+            Text("The following servers have validation errors:\n\n\(invalidServerDetails)\n\n"
+                + "Do you want to force save anyway? This will override all validations.")
         }
     }
 
@@ -69,11 +70,11 @@ struct AddServerModal: View {
 
             Spacer()
 
-            Button(action: { isPresented = false }) {
+            Button(action: { isPresented = false }, label: {
                 Image(systemName: "xmark")
                     .font(DesignTokens.Typography.title3)
                     .foregroundColor(.secondary)
-            }
+            })
             .buttonStyle(.plain)
         }
         .padding(24)
@@ -215,7 +216,8 @@ struct AddServerModal: View {
 
     private func validateJSON() {
         guard let serverDict = ServerExtractor.extractServerEntries(from: jsonText) else {
-            errorMessage = "Could not parse JSON. Expected format: {\"server-name\": {\"command\": \"...\"}} or wrap in {\"mcpServers\": {...}}"
+            errorMessage = "Could not parse JSON. Expected format: "
+                + "{\"server-name\": {\"command\": \"...\"}} or wrap in {\"mcpServers\": {...}}"
             return
         }
 

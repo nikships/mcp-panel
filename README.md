@@ -53,6 +53,15 @@ swift run                       # Build & run in development mode
 swift build -c release          # Release binary only
 ```
 
+Linting (SwiftLint):
+
+```bash
+brew install swiftlint          # one-time
+DYLD_FRAMEWORK_PATH=/Library/Developer/CommandLineTools/usr/lib \
+  swiftlint lint --strict       # run from repo root; CI enforces zero violations
+swiftlint --fix                 # autocorrect fixable issues
+```
+
 Distribution builds:
 
 ```bash

@@ -86,7 +86,8 @@ class IconService: ObservableObject {
             return "chevron.left.forwardslash.chevron.right"
         } else if lowerName.contains("slack") || lowerName.contains("discord") || lowerName.contains("message") {
             return "message.fill"
-        } else if lowerName.contains("database") || lowerName.contains("postgres") || lowerName.contains("mysql") || lowerName.contains("sql") {
+        } else if lowerName.contains("database") || lowerName.contains("postgres")
+                    || lowerName.contains("mysql") || lowerName.contains("sql") {
             return "cylinder.fill"
         } else if lowerName.contains("filesystem") || lowerName.contains("file") {
             return "folder.fill"

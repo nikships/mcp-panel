@@ -115,10 +115,10 @@ enum ViewMode: String, Codable, CaseIterable {
 }
 
 enum FilterMode: String, Codable, CaseIterable {
-    case all = "all"
-    case active = "active"
-    case disabled = "disabled"
-    case recent = "recent"
+    case all
+    case active
+    case disabled
+    case recent
 
     var displayName: String {
         switch self {

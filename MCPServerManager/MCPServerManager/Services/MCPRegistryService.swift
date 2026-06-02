@@ -14,9 +14,33 @@ class MCPRegistryService: ObservableObject {
     private let cacheTimeout: TimeInterval = 3600 // 1 hour
 
     // Compiled regex patterns for better performance (Sendable, safe for concurrent access)
-    nonisolated private static let jsonBlockRegex = try! NSRegularExpression(pattern: #"```json\s*\n(.*?)\n```"#, options: [.dotMatchesLineSeparators])
-    nonisolated private static let codeBlockRegex = try! NSRegularExpression(pattern: #"```\s*\n(\{.*?\})\n```"#, options: [.dotMatchesLineSeparators])
-    nonisolated private static let inlineRegex = try! NSRegularExpression(pattern: #""[^"]+"\s*:\s*\{[\s\S]*?"(?:command|httpUrl|url|transport|remotes|type)"\s*:[\s\S]*?\}"#, options: [])
+    nonisolated private static let jsonBlockRegex = compileRegex(
+        pattern: #"```json\s*\n(.*?)\n```"#,
+        options: [.dotMatchesLineSeparators]
+    )
+    nonisolated private static let codeBlockRegex = compileRegex(
+        pattern: #"```\s*\n(\{.*?\})\n```"#,
+        options: [.dotMatchesLineSeparators]
+    )
+    nonisolated private static let inlineRegex = compileRegex(
+        pattern: #""[^"]+"\s*:\s*\{[\s\S]*?"(?:command|httpUrl|url|transport|remotes|type)"\s*:[\s\S]*?\}"#,
+        options: []
+    )
+
+    /// Safely compile a regex pattern, returning `nil` (and logging in debug) instead of crashing.
+    nonisolated private static func compileRegex(
+        pattern: String,
+        options: NSRegularExpression.Options
+    ) -> NSRegularExpression? {
+        do {
+            return try NSRegularExpression(pattern: pattern, options: options)
+        } catch {
+            #if DEBUG
+            print("MCPRegistryService: Failed to compile regex \(pattern): \(error)")
+            #endif
+            return nil
+        }
+    }
 
     private init() {}
 
@@ -39,9 +63,26 @@ class MCPRegistryService: ObservableObject {
         isLoading = true
         defer { isLoading = false }
 
-        // Fetch all pages (with safety limit to prevent infinite loops)
+        let allServers = try await fetchAllServerWrappers()
+
+        // Process servers and extract configs
+        let registryServers = allServers.compactMap { makeRegistryServer(from: $0) }
+
+        #if DEBUG
+        print("MCPRegistryService: Successfully processed \(registryServers.count) servers")
+        #endif
+
+        // Update cache
+        cachedServers = registryServers
+        cacheTimestamp = Date()
+
+        return registryServers
+    }
+
+    /// Fetch every page of registry servers, following pagination cursors with a safety limit.
+    private func fetchAllServerWrappers() async throws -> [RegistryAPIServerWrapper] {
         var allServers: [RegistryAPIServerWrapper] = []
-        var cursor: String? = nil
+        var cursor: String?
         var pageCount = 0
         let maxPages = 100 // Safety limit to prevent infinite loops
 
@@ -56,33 +97,7 @@ class MCPRegistryService: ObservableObject {
                 break
             }
 
-            let pageURL: String
-            if let cursor, !cursor.isEmpty {
-                pageURL = apiURL + "?cursor=\(cursor)"
-            } else {
-                pageURL = apiURL
-            }
-
-            guard let url = URL(string: pageURL) else {
-                throw MCPRegistryError.invalidURL
-            }
-
-            let (data, response) = try await URLSession.shared.data(from: url)
-
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw MCPRegistryError.invalidResponse
-            }
-
-            guard httpResponse.statusCode == 200 else {
-                throw MCPRegistryError.httpError(httpResponse.statusCode)
-            }
-
-            let apiResponse: RegistryAPIResponse
-            do {
-                apiResponse = try JSONDecoder().decode(RegistryAPIResponse.self, from: data)
-            } catch {
-                throw MCPRegistryError.decodingError(error)
-            }
+            let apiResponse = try await fetchServerPage(cursor: cursor)
 
             #if DEBUG
             print("MCPRegistryService: Page \(pageCount) - Fetched \(apiResponse.servers.count) servers")
@@ -98,83 +113,105 @@ class MCPRegistryService: ObservableObject {
         print("MCPRegistryService: Total \(allServers.count) servers fetched across \(pageCount) page(s)")
         #endif
 
-        // Process servers and extract configs
-        let registryServers = allServers.compactMap { wrapper -> RegistryServer? in
-            let apiServer = wrapper.server
-            let xGithub = wrapper.xGithub
+        return allServers
+    }
 
-            // Try to get config from remotes first (HTTP/SSE servers)
-            var config: ServerConfig?
-
-            if let remotes = apiServer.remotes, !remotes.isEmpty {
-                config = createConfigFromRemotes(remotes)
-                #if DEBUG
-                if config != nil {
-                    print("MCPRegistryService: Using remotes config for \(apiServer.name)")
-                }
-                #endif
-            }
-
-            // Try packages if no remotes
-            if config == nil, let packages = apiServer.packages, !packages.isEmpty {
-                config = createConfigFromPackages(packages)
-                #if DEBUG
-                if config != nil {
-                    print("MCPRegistryService: Using packages config for \(apiServer.name)")
-                }
-                #endif
-            }
-
-            // Fall back to README extraction if no remotes or packages
-            if config == nil, let readme = xGithub?.readme {
-                config = extractConfigFromReadme(readme)
-                #if DEBUG
-                if config != nil {
-                    print("MCPRegistryService: Extracted config from README for \(apiServer.name)")
-                }
-                #endif
-            }
-
-            guard let finalConfig = config else {
-                #if DEBUG
-                print("MCPRegistryService: Skipping \(apiServer.name) - no valid config found")
-                #endif
-                return nil
-            }
-
-            let packageInfo = apiServer.packages?.first(where: { inferRegistryName(for: $0) != nil }) ?? apiServer.packages?.first
-            let metadata = RegistryMetadata(
-                createdAt: apiServer.createdAt,
-                updatedAt: apiServer.updatedAt,
-                packageIdentifier: packageInfo?.name,
-                packageVersion: packageInfo?.version,
-                registryType: packageInfo.flatMap { inferRegistryName(for: $0) } ?? packageInfo?.registryName,
-                runtimeHint: packageInfo?.runtimeHint
-            )
-
-            // Extract image URL from GitHub metadata (prefer preferredImage, fallback to ownerAvatarUrl)
-            let imageUrl = xGithub?.preferredImage ?? xGithub?.ownerAvatarUrl
-
-            return RegistryServer(
-                id: apiServer.name,
-                name: apiServer.name,
-                description: apiServer.description,
-                repository: apiServer.repository?.url ?? "",
-                config: finalConfig,
-                metadata: metadata,
-                imageUrl: imageUrl
-            )
+    /// Fetch and decode a single page of registry servers for the given pagination cursor.
+    private func fetchServerPage(cursor: String?) async throws -> RegistryAPIResponse {
+        let pageURL: String
+        if let cursor, !cursor.isEmpty {
+            pageURL = apiURL + "?cursor=\(cursor)"
+        } else {
+            pageURL = apiURL
         }
 
-        #if DEBUG
-        print("MCPRegistryService: Successfully processed \(registryServers.count) servers")
-        #endif
+        guard let url = URL(string: pageURL) else {
+            throw MCPRegistryError.invalidURL
+        }
 
-        // Update cache
-        cachedServers = registryServers
-        cacheTimestamp = Date()
+        let (data, response) = try await URLSession.shared.data(from: url)
 
-        return registryServers
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw MCPRegistryError.invalidResponse
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            throw MCPRegistryError.httpError(httpResponse.statusCode)
+        }
+
+        do {
+            return try JSONDecoder().decode(RegistryAPIResponse.self, from: data)
+        } catch {
+            throw MCPRegistryError.decodingError(error)
+        }
+    }
+
+    /// Build a `RegistryServer` from an API wrapper, resolving its config and metadata.
+    private func makeRegistryServer(from wrapper: RegistryAPIServerWrapper) -> RegistryServer? {
+        let apiServer = wrapper.server
+        let xGithub = wrapper.xGithub
+
+        guard let finalConfig = resolveConfig(for: apiServer, xGithub: xGithub) else {
+            #if DEBUG
+            print("MCPRegistryService: Skipping \(apiServer.name) - no valid config found")
+            #endif
+            return nil
+        }
+
+        let packageInfo = apiServer.packages?.first(where: { inferRegistryName(for: $0) != nil }) ?? apiServer.packages?.first
+        let metadata = RegistryMetadata(
+            createdAt: apiServer.createdAt,
+            updatedAt: apiServer.updatedAt,
+            packageIdentifier: packageInfo?.name,
+            packageVersion: packageInfo?.version,
+            registryType: packageInfo.flatMap { inferRegistryName(for: $0) } ?? packageInfo?.registryName,
+            runtimeHint: packageInfo?.runtimeHint
+        )
+
+        // Extract image URL from GitHub metadata (prefer preferredImage, fallback to ownerAvatarUrl)
+        let imageUrl = xGithub?.preferredImage ?? xGithub?.ownerAvatarUrl
+
+        return RegistryServer(
+            id: apiServer.name,
+            name: apiServer.name,
+            description: apiServer.description,
+            repository: apiServer.repository?.url ?? "",
+            config: finalConfig,
+            metadata: metadata,
+            imageUrl: imageUrl
+        )
+    }
+
+    /// Resolve a server config, preferring remotes, then packages, then README extraction.
+    private func resolveConfig(for apiServer: RegistryAPIServer, xGithub: GitHubMetadata?) -> ServerConfig? {
+        // Try to get config from remotes first (HTTP/SSE servers)
+        if let remotes = apiServer.remotes, !remotes.isEmpty,
+           let config = createConfigFromRemotes(remotes) {
+            #if DEBUG
+            print("MCPRegistryService: Using remotes config for \(apiServer.name)")
+            #endif
+            return config
+        }
+
+        // Try packages if no remotes
+        if let packages = apiServer.packages, !packages.isEmpty,
+           let config = createConfigFromPackages(packages) {
+            #if DEBUG
+            print("MCPRegistryService: Using packages config for \(apiServer.name)")
+            #endif
+            return config
+        }
+
+        // Fall back to README extraction if no remotes or packages
+        if let readme = xGithub?.readme,
+           let config = extractConfigFromReadme(readme) {
+            #if DEBUG
+            print("MCPRegistryService: Extracted config from README for \(apiServer.name)")
+            #endif
+            return config
+        }
+
+        return nil
     }
 
     /// Clear cached servers (force refresh on next fetch)
@@ -385,8 +422,10 @@ class MCPRegistryService: ObservableObject {
     private nonisolated func extractJSONBlocks(from markdown: String) -> [String] {
         var blocks: [String] = []
 
+        let fullRange = NSRange(markdown.startIndex..., in: markdown)
+
         // Pattern 1: ```json\n...\n```
-        let matches1 = Self.jsonBlockRegex.matches(in: markdown, range: NSRange(markdown.startIndex..., in: markdown))
+        let matches1 = Self.jsonBlockRegex?.matches(in: markdown, range: fullRange) ?? []
         for match in matches1 {
             if let range = Range(match.range(at: 1), in: markdown) {
                 blocks.append(String(markdown[range]))
@@ -394,7 +433,7 @@ class MCPRegistryService: ObservableObject {
         }
 
         // Pattern 2: ```\n{...}\n```
-        let matches2 = Self.codeBlockRegex.matches(in: markdown, range: NSRange(markdown.startIndex..., in: markdown))
+        let matches2 = Self.codeBlockRegex?.matches(in: markdown, range: fullRange) ?? []
         for match in matches2 {
             if let range = Range(match.range(at: 1), in: markdown) {
                 blocks.append(String(markdown[range]))
@@ -403,7 +442,7 @@ class MCPRegistryService: ObservableObject {
 
         // Pattern 3: Inline JSON with server name (e.g., "server-name": { ... })
         // This catches configs like command-based stdio and URL-based remote configs.
-        let matches3 = Self.inlineRegex.matches(in: markdown, range: NSRange(markdown.startIndex..., in: markdown))
+        let matches3 = Self.inlineRegex?.matches(in: markdown, range: fullRange) ?? []
         for match in matches3 {
             if let range = Range(match.range, in: markdown) {
                 let jsonStr = String(markdown[range])

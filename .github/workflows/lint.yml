@@ -1,0 +1,23 @@
+name: Lint
+
+on:
+  push:
+    branches: [ main, swifty ]
+  pull_request:
+    branches: [ main, swifty ]
+
+jobs:
+  swiftlint:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install SwiftLint
+        run: brew install swiftlint
+
+      - name: Run SwiftLint
+        # --strict promotes warnings to errors so the build fails on any
+        # violation, keeping the codebase clean for both humans and agents.
+        run: swiftlint lint --strict --reporter github-actions-logging

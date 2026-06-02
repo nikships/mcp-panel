@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- **SwiftLint Linting** - Added a tuned `.swiftlint.yml` (complexity, file/function/line length, naming, and TODO tracking rules), a `Lint` GitHub Actions workflow that runs `swiftlint lint --strict` on every push/PR, and a pre-commit hook that lints staged changes. The existing source was brought to **zero** violations (safe renames of single-letter locals, tuple→struct refactors, long-line wrapping, and splitting oversized types/files), with no behavior change.
 - **Live Config Watching** - The app now watches your config file and reloads automatically when it changes on disk (edited by another tool, CLI, or editor). Debounced and resilient to atomic saves; no more stale views.
 - **JSON Syntax Highlighting** - Server config previews, the inline card editor, and the Raw JSON editor now render theme-aware, syntax-highlighted JSON (keys, strings, numbers, booleans/null, and punctuation), with caching for smooth scrolling.
 - **Inline Rename** - Edit a server's top-level JSON key in the card editor to rename it; collisions and empty names are rejected with a clear message.

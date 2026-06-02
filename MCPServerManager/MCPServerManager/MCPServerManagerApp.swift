@@ -107,8 +107,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         return false // Never quit when window closes - we're a menu bar app now
     }
 
-
-
     // MARK: - Menu Bar Setup
 
     /// Setup menu bar with view model (called from ContentView) - ALWAYS ENABLED NOW
@@ -118,10 +116,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         if menuBarController == nil {
             menuBarController = MenuBarController()
         }
-        
+
         // Set up the menu bar controller with the view model
         menuBarController?.setup(with: viewModel)
-        
+
         // Make sure the menu bar icon is visible
         menuBarController?.showMenuBarIcon()
     }

@@ -102,7 +102,7 @@ struct OnboardingModal: View {
                     if !selectedPath.isEmpty {
                         Button(action: {
                             viewModel.completeOnboarding(configPath: selectedPath)
-                        }) {
+                        }, label: {
                             Text("Continue")
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 12)
@@ -111,7 +111,7 @@ struct OnboardingModal: View {
                                         .fill(Color.green)
                                 )
                                 .foregroundColor(.white)
-                        }
+                        })
                         .buttonStyle(.plain)
                     }
                 }
@@ -154,7 +154,14 @@ struct OnboardingModal: View {
                 selectedPath = url.path.replacingOccurrences(of: NSHomeDirectory(), with: "~")
             } catch {
                 // Show alert - this is critical for onboarding
-                bookmarkAlertMessage = "Failed to create persistent access to the selected file. The app may not be able to access this file after restart.\n\nError: \(error.localizedDescription)\n\nPlease try selecting the file again."
+                bookmarkAlertMessage = """
+                    Failed to create persistent access to the selected file. \
+                    The app may not be able to access this file after restart.
+
+                    Error: \(error.localizedDescription)
+
+                    Please try selecting the file again.
+                    """
                 showBookmarkAlert = true
             }
         }

@@ -5,7 +5,7 @@ struct CustomToggleSwitch: View {
     var label: String = ""
 
     var body: some View {
-        Button(action: { withAnimation(.spring(response: 0.3)) { isOn.toggle() } }) {
+        Button(action: { withAnimation(.spring(response: 0.3)) { isOn.toggle() } }, label: {
             HStack(spacing: 12) {
                 if !label.isEmpty {
                     Text(label)
@@ -27,7 +27,7 @@ struct CustomToggleSwitch: View {
                         .offset(x: isOn ? 10 : -10)
                 }
             }
-        }
+        })
         .buttonStyle(.plain)
     }
 
@@ -45,7 +45,7 @@ struct CheckboxToggle: View {
     var label: String
 
     var body: some View {
-        Button(action: { isOn.toggle() }) {
+        Button(action: { isOn.toggle() }, label: {
             HStack(spacing: 8) {
                 Image(systemName: isOn ? "checkmark.square.fill" : "square")
                     .foregroundColor(isOn ? .blue : .gray)
@@ -55,7 +55,7 @@ struct CheckboxToggle: View {
                     .font(DesignTokens.Typography.label)
                     .foregroundColor(.primary)
             }
-        }
+        })
         .buttonStyle(.plain)
     }
 }
