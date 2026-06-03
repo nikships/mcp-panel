@@ -82,9 +82,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     /// previous predicate matched, leaving nothing visible on screen.
     private weak var mainWindow: NSWindow?
 
-    /// Record the main window once its AppKit backing exists.
+    /// Record the main window once its AppKit backing exists. `updateNSView` can
+    /// fire this repeatedly during SwiftUI updates, so skip redundant re-assignment.
     @MainActor
     func registerMainWindow(_ window: NSWindow) {
+        guard mainWindow !== window else { return }
         window.identifier = NSUserInterfaceItemIdentifier(MCPServerManagerApp.mainWindowID)
         mainWindow = window
     }
@@ -94,7 +96,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     func showMainWindow() {
         activateApp()
 
-        if let window = locateMainWindow() {
+        let existingWindow = locateMainWindow()
+        if let window = existingWindow {
             window.makeKeyAndOrderFront(nil)
             window.orderFrontRegardless()
         } else {
@@ -102,9 +105,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             openMainWindow?()
         }
 
-        // Safety net: if nothing ended up on screen this runloop (e.g. activation
-        // was suppressed on macOS 14+, or SwiftUI deferred re-creating the window),
-        // force a reopen. openWindow(id:) on a single Window scene is idempotent.
+        // Safety net only applies when the window already existed but failed to come
+        // forward (e.g. activation was suppressed on macOS 14+). When it didn't exist
+        // we've already asked SwiftUI to create it; openWindow(id:) is async, so
+        // re-checking on the next run loop would just fire a redundant reopen.
+        guard existingWindow != nil else { return }
         DispatchQueue.main.async { [weak self] in
             MainActor.assumeIsolated {
                 guard let self = self else { return }
