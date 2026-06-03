@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import ServiceManagement
 #if canImport(Sparkle)
 import Sparkle
@@ -19,6 +20,10 @@ struct MCPServerManagerApp: App {
             ContentView()
                 .environmentObject(appDelegate)
                 .preferredColorScheme(.dark)
+                .background(WindowAccessor { window in
+                    // Capture the real main window so it can be re-focused/reopened reliably.
+                    appDelegate.registerMainWindow(window)
+                })
                 .onAppear {
                     // Give the AppKit menu-bar controller a way to reopen this window.
                     appDelegate.openMainWindow = { openWindow(id: MCPServerManagerApp.mainWindowID) }
@@ -71,21 +76,73 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
     /// Set by the SwiftUI scene; opens (and re-creates if needed) the main window.
     var openMainWindow: (() -> Void)?
 
+    /// Weak reference to the main window, captured by `WindowAccessor`. Lets us
+    /// re-focus the real window instead of guessing from `NSApp.windows`, which
+    /// can contain hidden helper windows (e.g. the file-exporter panel) that the
+    /// previous predicate matched, leaving nothing visible on screen.
+    private weak var mainWindow: NSWindow?
+
+    /// Record the main window once its AppKit backing exists.
+    @MainActor
+    func registerMainWindow(_ window: NSWindow) {
+        window.identifier = NSUserInterfaceItemIdentifier(MCPServerManagerApp.mainWindowID)
+        mainWindow = window
+    }
+
     /// Bring the main window to front, re-creating it if it was closed.
     @MainActor
     func showMainWindow() {
-        NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
+        activateApp()
 
-        // Reuse an existing main window if one is still around.
-        if let window = NSApp.windows.first(where: { window in
-            window.className != "NSStatusBarWindow" && !(window is MenuBarPanel)
-        }) {
+        if let window = locateMainWindow() {
             window.makeKeyAndOrderFront(nil)
             window.orderFrontRegardless()
         } else {
-            // Window was closed/destroyed: ask SwiftUI to open a fresh one.
+            // Window was closed and released: ask SwiftUI to open a fresh one.
             openMainWindow?()
+        }
+
+        // Safety net: if nothing ended up on screen this runloop (e.g. activation
+        // was suppressed on macOS 14+, or SwiftUI deferred re-creating the window),
+        // force a reopen. openWindow(id:) on a single Window scene is idempotent.
+        DispatchQueue.main.async { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self = self else { return }
+                if self.visibleMainWindow() == nil {
+                    self.activateApp()
+                    self.openMainWindow?()
+                }
+            }
+        }
+    }
+
+    /// The main content window if it still exists (it may be hidden). Prefers the
+    /// window captured by `WindowAccessor`, falling back to a scene-id match.
+    @MainActor
+    private func locateMainWindow() -> NSWindow? {
+        if let window = mainWindow {
+            return window
+        }
+        return NSApp.windows.first { $0.identifier?.rawValue == MCPServerManagerApp.mainWindowID }
+    }
+
+    /// The main content window, but only when it is actually on screen.
+    @MainActor
+    private func visibleMainWindow() -> NSWindow? {
+        guard let window = locateMainWindow(), window.isVisible else { return nil }
+        return window
+    }
+
+    /// Activate the app (and show the Dock icon), using the cooperative activation
+    /// API on macOS 14+ and the legacy call on macOS 13. The two-step activation
+    /// is what brings a previously-closed, borderless window back to the front.
+    @MainActor
+    private func activateApp() {
+        NSApp.setActivationPolicy(.regular)
+        if #available(macOS 14.0, *) {
+            NSApp.activate()
+        } else {
+            NSApp.activate(ignoringOtherApps: true)
         }
     }
 
@@ -196,5 +253,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             MainActor.assumeIsolated { showMainWindow() }
         }
         return true
+    }
+}
+
+/// Captures the hosting `NSWindow` of the main scene so the app can reliably
+/// re-focus or reopen it from the menu bar and the Dock — even after it has been
+/// closed. More robust than scanning `NSApp.windows`, which can contain hidden
+/// helper windows. SwiftUI invokes the representable callbacks on the main actor.
+private struct WindowAccessor: NSViewRepresentable {
+    let onResolve: @MainActor (NSWindow) -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        NSView()
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        guard let window = nsView.window else { return }
+        onResolve(window)
     }
 }
