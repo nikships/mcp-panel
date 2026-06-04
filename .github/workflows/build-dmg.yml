@@ -110,8 +110,13 @@ jobs:
     - name: Add Sparkle framework and update Info.plist
       working-directory: MCPServerManager
       run: |
-        # Download Sparkle framework
-        curl -L https://github.com/sparkle-project/Sparkle/releases/download/2.5.2/Sparkle-2.5.2.tar.xz -o sparkle.tar.xz
+        # Embed the SAME Sparkle version the binary was linked against (read from
+        # Package.resolved). Embedding a different framework version than the one
+        # SPM compiled against causes an ABI/nib/bindings mismatch that crashes
+        # (uncaught KVO exception) when the "update available" alert is shown.
+        SPARKLE_VERSION=$(grep '"version" : "' Package.resolved | head -1 | sed -E 's/.*"version" : "([^"]+)".*/\1/')
+        echo "Embedding Sparkle.framework version: $SPARKLE_VERSION"
+        curl -L "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz" -o sparkle.tar.xz
         tar -xf sparkle.tar.xz
 
         # Copy Sparkle framework to app bundle
@@ -208,8 +213,10 @@ jobs:
 
     - name: Install Sparkle tools
       run: |
-        # Download and install Sparkle's generate_appcast tool
-        curl -L https://github.com/sparkle-project/Sparkle/releases/download/2.5.2/Sparkle-2.5.2.tar.xz -o sparkle.tar.xz
+        # Download Sparkle's generate_appcast tool, matching the embedded framework version.
+        SPARKLE_VERSION=$(grep '"version" : "' MCPServerManager/Package.resolved | head -1 | sed -E 's/.*"version" : "([^"]+)".*/\1/')
+        echo "Using Sparkle tools version: $SPARKLE_VERSION"
+        curl -L "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz" -o sparkle.tar.xz
         tar -xf sparkle.tar.xz
         chmod +x bin/generate_appcast
         sudo cp bin/generate_appcast /usr/local/bin/
