@@ -7,6 +7,14 @@ struct ServerCardView: View {
     @Binding var blurJSONPreviews: Bool
     @State private var isEditing = false
     @State private var editedConfigText: String = ""
+    /// Cached `namedConfigJSON` for the read-only preview. Encoding is comparatively
+    /// expensive, so it is computed off the `body` path in `.task` (keyed by `server`)
+    /// instead of re-encoding on every render while scrolling the grid. On first
+    /// appearance — and until `.task` populates the cache, or whenever `server`
+    /// changes — `cachedServer != server`, so the preview falls back to a synchronous
+    /// encode (avoiding an empty-preview flicker) and uses the cached string thereafter.
+    @State private var previewJSON: String = ""
+    @State private var cachedServer: ServerModel?
     @State private var isHovering = false
     @State private var showingDeleteAlert = false
     @State private var showForceAlert = false
@@ -65,6 +73,10 @@ struct ServerCardView: View {
         } message: {
             Text("This server has validation errors:\n\n\(invalidReason)\n\n"
                 + "Do you want to force save anyway? This will override all validations.")
+        }
+        .task(id: server) {
+            previewJSON = server.namedConfigJSON
+            cachedServer = server
         }
     }
 
@@ -196,16 +208,17 @@ struct ServerCardView: View {
 
     private var previewView: some View {
         ZStack(alignment: .topTrailing) {
-            ScrollView {
-                HighlightedJSONText(
-                    json: server.namedConfigJSON,
-                    themeColors: themeColors,
-                    themeName: currentTheme.rawValue
-                )
-                .padding(8)
-                .blur(radius: blurJSONPreviews ? DesignTokens.jsonPreviewBlurRadius : 0)
-            }
-            .frame(height: 200)
+            // Read-only preview: render the highlighted JSON directly (no nested
+            // ScrollView — one per card stutters the grid) clipped to a fixed height.
+            // Tap the pencil / Edit to see and modify the full config.
+            HighlightedJSONText(
+                json: cachedServer == server ? previewJSON : server.namedConfigJSON,
+                themeColors: themeColors,
+                themeName: currentTheme.rawValue
+            )
+            .padding(8)
+            .modifier(PreviewBlur(active: blurJSONPreviews))
+            .frame(maxWidth: .infinity, minHeight: 200, maxHeight: 200, alignment: .topLeading)
             .background(jsonSurface)
             .clipShape(RoundedRectangle(cornerRadius: 8))
 
@@ -331,6 +344,23 @@ struct ServerCardView: View {
 
     private func formatJSON(_ string: String) -> String {
         JSONFormatter.prettyPrinted(string) ?? string
+    }
+}
+
+// MARK: - Preview Blur
+
+/// Applies a blur only when active. Applying `.blur(radius: 0)` unconditionally still
+/// forces an offscreen render pass per card, so the inactive case returns the view
+/// untouched to keep grid scrolling smooth.
+private struct PreviewBlur: ViewModifier {
+    let active: Bool
+
+    func body(content: Content) -> some View {
+        if active {
+            content.blur(radius: DesignTokens.jsonPreviewBlurRadius)
+        } else {
+            content
+        }
     }
 }
 
