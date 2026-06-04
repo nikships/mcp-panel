@@ -110,11 +110,10 @@ jobs:
     - name: Add Sparkle framework and update Info.plist
       working-directory: MCPServerManager
       run: |
-        # Embed the SAME Sparkle version the binary was linked against (read from
-        # Package.resolved). Embedding a different framework version than the one
-        # SPM compiled against causes an ABI/nib/bindings mismatch that crashes
-        # (uncaught KVO exception) when the "update available" alert is shown.
-        SPARKLE_VERSION=$(grep '"version" : "' Package.resolved | head -1 | sed -E 's/.*"version" : "([^"]+)".*/\1/')
+        # Embed the same Sparkle version the app was built against (pinned in
+        # project.yml). If these differ, the app crashes when it shows the
+        # "update available" window.
+        SPARKLE_VERSION=$(grep 'exactVersion:' ../project.yml | sed -E 's/.*"([^"]+)".*/\1/')
         echo "Embedding Sparkle.framework version: $SPARKLE_VERSION"
         curl -L "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz" -o sparkle.tar.xz
         tar -xf sparkle.tar.xz
@@ -213,8 +212,8 @@ jobs:
 
     - name: Install Sparkle tools
       run: |
-        # Download Sparkle's generate_appcast tool, matching the embedded framework version.
-        SPARKLE_VERSION=$(grep '"version" : "' MCPServerManager/Package.resolved | head -1 | sed -E 's/.*"version" : "([^"]+)".*/\1/')
+        # Download Sparkle's generate_appcast tool, matching the pinned version.
+        SPARKLE_VERSION=$(grep 'exactVersion:' project.yml | sed -E 's/.*"([^"]+)".*/\1/')
         echo "Using Sparkle tools version: $SPARKLE_VERSION"
         curl -L "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz" -o sparkle.tar.xz
         tar -xf sparkle.tar.xz

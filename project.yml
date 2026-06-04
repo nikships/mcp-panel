@@ -49,7 +49,10 @@ targets:
 packages:
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle
-    from: "2.5.0"
+    # Pin an exact version so the framework the app is built against matches the
+    # framework embedded in the DMG. A floating range let the two drift apart,
+    # which crashed the app when the "update available" window was shown.
+    exactVersion: "2.9.2"
 
 schemes:
   MCPServerManager:
