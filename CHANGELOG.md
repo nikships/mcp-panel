@@ -9,13 +9,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 - **SwiftLint Linting** - Added a tuned `.swiftlint.yml` (complexity, file/function/line length, naming, and TODO tracking rules), a `Lint` GitHub Actions workflow that runs `swiftlint lint --strict` on every push/PR, and a pre-commit hook that lints staged changes. The existing source was brought to **zero** violations (safe renames of single-letter locals, tuple→struct refactors, long-line wrapping, and splitting oversized types/files), with no behavior change.
 - **Live Config Watching** - The app now watches your config file and reloads automatically when it changes on disk (edited by another tool, CLI, or editor). Debounced and resilient to atomic saves; no more stale views.
-- **JSON Syntax Highlighting** - Server config previews, the inline card editor, and the Raw JSON editor now render theme-aware, syntax-highlighted JSON (keys, strings, numbers, booleans/null, and punctuation), with caching for smooth scrolling.
+- **JSON Syntax Highlighting** - Server config previews, the inline card editor, the Raw JSON editor, and the Add Servers editor now render theme-aware, syntax-highlighted JSON (keys, strings, numbers, booleans/null, and punctuation), with caching for smooth scrolling.
 - **Inline Rename** - Edit a server's top-level JSON key in the card editor to rename it; collisions and empty names are rejected with a clear message.
 - **Transport Badge** - Each server card shows a transport badge (stdio / HTTP / SSE) at a glance, plus a context menu (Edit, Copy JSON, Delete) and improved accessibility labels.
 - **`servers` Wrapper Support** - Pasting configs wrapped in `"servers"` (the VS Code / GitHub Copilot format) now works just like `"mcpServers"`; the wrapper is unwrapped automatically.
 - **Paste a URL to Add** - Pasting a bare URL (e.g. `https://mcp.magicpatterns.com/mcp`) and clicking Add now creates an HTTP server keyed by the domain (e.g. `magicpatterns`). A missing scheme defaults to `https://`.
 
 ### Changed
+- **Live Validation in Add Servers** - The Add Servers modal now validates the manual JSON as you type and shows inline valid/invalid feedback, so the separate **Validate** button has been removed. The editor is also syntax-highlighted, matching the Raw JSON editor.
 - **Single Config Model** - Simplified to a single active configuration. A server is either enabled (present in the config) or not, replacing the previous dual-config enabled-state arrays.
 - **⌘R Reloads From Disk** - The refresh button and ⌘R now reload servers from the config file instead of re-writing it.
 - **Real "Recent" Filter** - The Recent filter now shows servers modified within the last 24 hours, most-recent first.
@@ -26,6 +27,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Internal Cleanup** - Simplified source across models, services, view models, and views (deduplicated JSON encoding, flattened redundant conditionals and availability guards) with no behavior change.
 
 ### Fixed
+- **Valid Config Message Now Green** - In the Add Servers modal, the "Valid! Found N server(s)" confirmation now renders in the theme's success green. Previously it always used red error styling regardless of whether the configuration was actually valid.
 - **"Open App" Always Opens the Window** - Hardened the menu bar "Open App" action (and the Dock icon / ⌘0) so it reliably brings the main window to the front, even after the window has been closed. The window is now tracked directly instead of being guessed from `NSApp.windows` (which could match a hidden helper window and leave nothing visible on screen), is reopened through the window scene when it no longer exists, is activated with the macOS 14+ cooperative activation API where available, and is re-checked on the next run loop as a fallback. Resolves an App Store review finding (Guideline 2.1(a)) where clicking "Open App" appeared to do nothing.
 - **Consistent Custom Fonts Across Build Paths** - Poppins / Crimson Pro now register reliably whether the app is built via the GitHub Actions workflow (xcodebuild) or locally for Transporter (`swift build`). `FontManager` now discovers fonts by recursively scanning the bundle instead of probing fixed paths, the Info.plist uses the correct macOS `ATSApplicationFontsPath` key (the old iOS-only `UIAppFonts` key was ignored), and both build paths embed fonts in `Contents/Resources/Fonts`. Previously some App Store builds silently fell back to the system font.
 

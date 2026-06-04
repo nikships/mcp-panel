@@ -4,11 +4,12 @@ struct AddServerModal: View {
     @Binding var isPresented: Bool
     @ObservedObject var viewModel: ServerViewModel
     @Environment(\.themeColors) private var themeColors
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     // MARK: - Entry State
 
     @State private var jsonText = ""
-    @State private var errorMessage = ""
+    @State private var validationStatus: ValidationStatus = .none
     @State private var entryMode: EntryMode = .manual
     @State private var registryImages: [String: String] = [:]
 
@@ -23,6 +24,13 @@ struct AddServerModal: View {
     private enum EntryMode {
         case manual
         case browse
+    }
+
+    /// Live validation result for the manual JSON entry field.
+    private enum ValidationStatus: Equatable {
+        case none
+        case valid(Int)
+        case invalid(String)
     }
 
     var body: some View {
@@ -122,7 +130,6 @@ struct AddServerModal: View {
     private var footerView: some View {
         HStack(spacing: 12) {
             SecondaryButton(icon: "text.alignleft", title: "Format JSON", action: formatJSON)
-            SecondaryButton(icon: "checkmark.shield", title: "Validate", action: validateJSON)
 
             Spacer()
 
@@ -152,37 +159,59 @@ struct AddServerModal: View {
                     .font(DesignTokens.Typography.bodySmall)
                     .foregroundColor(.secondary)
 
-                TextEditor(text: $jsonText)
-                    .font(DesignTokens.Typography.codeLarge)
-                    .frame(minHeight: 350, idealHeight: 450, maxHeight: 600)
-                    .scrollContentBackground(.hidden)
-                    .background(Color.black.opacity(0.3))
-                    .cornerRadius(12)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                    )
-                    .focusable(true)
-
-                if !errorMessage.isEmpty {
-                    errorMessageView
+                JSONCodeEditor(
+                    text: $jsonText,
+                    themeColors: themeColors,
+                    fontSize: 15,
+                    reduceTransparency: reduceTransparency
+                )
+                .frame(minHeight: 350, idealHeight: 450, maxHeight: 600)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                )
+                .onChange(of: jsonText) { _ in
+                    validateInput()
                 }
+
+                validationStatusView
             }
             .padding(24)
         }
     }
 
-    private var errorMessageView: some View {
+    @ViewBuilder
+    private var validationStatusView: some View {
+        switch validationStatus {
+        case .none:
+            EmptyView()
+        case .valid(let count):
+            statusBanner(
+                icon: "checkmark.circle.fill",
+                message: "Valid! Found \(count) server\(count == 1 ? "" : "s")",
+                color: themeColors.successColor
+            )
+        case .invalid(let message):
+            statusBanner(
+                icon: "exclamationmark.triangle.fill",
+                message: message,
+                color: themeColors.errorColor
+            )
+        }
+    }
+
+    private func statusBanner(icon: String, message: String, color: Color) -> some View {
         HStack {
-            Image(systemName: "exclamationmark.triangle.fill")
-            Text(errorMessage)
+            Image(systemName: icon)
+            Text(message)
         }
         .font(DesignTokens.Typography.bodySmall)
-        .foregroundColor(.red)
+        .foregroundColor(color)
         .padding(12)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(Color.red.opacity(0.1))
+                .fill(color.opacity(0.1))
         )
     }
 
@@ -198,7 +227,7 @@ struct AddServerModal: View {
 
     private func resetForm() {
         jsonText = ""
-        errorMessage = ""
+        validationStatus = .none
         registryImages = [:]
         clearPendingState()
     }
@@ -207,22 +236,29 @@ struct AddServerModal: View {
 
     private func formatJSON() {
         guard let result = JSONFormatter.prettyPrinted(jsonText) else {
-            errorMessage = "Invalid JSON format (after normalizing quotes)"
+            validationStatus = .invalid("Invalid JSON format (after normalizing quotes)")
             return
         }
+        // Assigning `jsonText` triggers `onChange`, which re-runs `validateInput()`.
         jsonText = result
-        errorMessage = ""
     }
 
-    private func validateJSON() {
+    /// Validate the manual JSON entry. Runs live as the user edits and drives
+    /// `validationStatusView` (green when valid, red when invalid).
+    private func validateInput() {
+        guard !jsonText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            validationStatus = .none
+            return
+        }
+
         guard let serverDict = ServerExtractor.extractServerEntries(from: jsonText) else {
-            errorMessage = "Could not parse JSON. Expected format: "
-                + "{\"server-name\": {\"command\": \"...\"}} or wrap in {\"mcpServers\": {...}}"
+            validationStatus = .invalid("Could not parse JSON. Expected format: "
+                + "{\"server-name\": {\"command\": \"...\"}} or wrap in {\"mcpServers\": {...}}")
             return
         }
 
         guard !serverDict.isEmpty else {
-            errorMessage = "No valid server configurations found in JSON"
+            validationStatus = .invalid("No valid server configurations found in JSON")
             return
         }
 
@@ -231,11 +267,11 @@ struct AddServerModal: View {
             let details = invalidServers
                 .map { "\($0.key): \(getInvalidReason($0.value))" }
                 .joined(separator: "; ")
-            errorMessage = "Invalid server config(s): \(details)"
+            validationStatus = .invalid("Invalid server config(s): \(details)")
             return
         }
 
-        errorMessage = "Valid! Found \(serverDict.count) server(s)"
+        validationStatus = .valid(serverDict.count)
     }
 
     private func getInvalidReason(_ config: ServerConfig) -> String {
@@ -274,7 +310,7 @@ struct AddServerModal: View {
             pendingRegistryImages = images
             showForceAlert = true
         case .failed:
-            errorMessage = "Could not add servers. Review the JSON and try again."
+            validationStatus = .invalid("Could not add servers. Review the JSON and try again.")
         }
     }
 
@@ -302,7 +338,7 @@ struct AddServerModal: View {
         withAnimation(.easeInOut(duration: 0.2)) {
             entryMode = .manual
         }
-        errorMessage = ""
+        validateInput()
     }
 
     private func encodeAsPrettyJSON(_ value: [String: ServerConfig]) -> String? {
