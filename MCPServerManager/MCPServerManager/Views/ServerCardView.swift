@@ -9,8 +9,12 @@ struct ServerCardView: View {
     @State private var editedConfigText: String = ""
     /// Cached `namedConfigJSON` for the read-only preview. Encoding is comparatively
     /// expensive, so it is computed off the `body` path in `.task` (keyed by `server`)
-    /// instead of re-encoding on every render while scrolling the grid.
+    /// instead of re-encoding on every render while scrolling the grid. On first
+    /// appearance — and until `.task` populates the cache, or whenever `server`
+    /// changes — `cachedServer != server`, so the preview falls back to a synchronous
+    /// encode (avoiding an empty-preview flicker) and uses the cached string thereafter.
     @State private var previewJSON: String = ""
+    @State private var cachedServer: ServerModel?
     @State private var isHovering = false
     @State private var showingDeleteAlert = false
     @State private var showForceAlert = false
@@ -72,6 +76,7 @@ struct ServerCardView: View {
         }
         .task(id: server) {
             previewJSON = server.namedConfigJSON
+            cachedServer = server
         }
     }
 
@@ -207,7 +212,7 @@ struct ServerCardView: View {
             // ScrollView — one per card stutters the grid) clipped to a fixed height.
             // Tap the pencil / Edit to see and modify the full config.
             HighlightedJSONText(
-                json: previewJSON,
+                json: cachedServer == server ? previewJSON : server.namedConfigJSON,
                 themeColors: themeColors,
                 themeName: currentTheme.rawValue
             )
