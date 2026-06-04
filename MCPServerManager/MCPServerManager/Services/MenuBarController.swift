@@ -174,7 +174,6 @@ class MenuBarController: NSObject {
 
         let panelView = MenuBarPopoverView(
             viewModel: viewModel,
-            onOpenApp: { [weak self] in self?.openMainApp() },
             onRefresh: { [weak self] in self?.refreshServers() }
         )
         .environment(\.themeColors, viewModel.themeColors)
