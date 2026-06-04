@@ -24,7 +24,6 @@ struct VisualEffectBlur: NSViewRepresentable {
 /// Menu bar popover view for quick server access
 struct MenuBarPopoverView: View {
     @ObservedObject var viewModel: ServerViewModel
-    let onOpenApp: () -> Void
     let onRefresh: () -> Void
     @State private var searchText = ""
 
@@ -162,21 +161,6 @@ struct MenuBarPopoverView: View {
             .buttonStyle(.plain)
             .foregroundColor(themeColors.primaryAccent)
             .help("Refresh servers")
-
-            Spacer()
-
-            Button {
-                onOpenApp()
-            } label: {
-                HStack(spacing: 4) {
-                    Text("Open App")
-                        .font(.system(size: 11, weight: .medium))
-                    Image(systemName: "arrow.up.right.square")
-                        .font(.system(size: 10))
-                }
-                .foregroundColor(themeColors.primaryAccent)
-            }
-            .buttonStyle(.plain)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
