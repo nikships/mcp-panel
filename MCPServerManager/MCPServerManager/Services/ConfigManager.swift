@@ -47,7 +47,11 @@ class ConfigManager {
     private func parseServers(from data: Data) throws -> [String: ServerConfig] {
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
 
-        let serverDictionary = (json["mcpServers"] as? [String: Any]) ?? json
+        // Claude Code's `~/.claude.json` stores many unrelated top-level keys
+        // (projects, userID, etc.) and only has `mcpServers` once servers exist.
+        // Treat a missing `mcpServers` as an empty set rather than parsing the
+        // whole file as servers, which would create bogus cards and stall loading.
+        let serverDictionary = json["mcpServers"] as? [String: Any] ?? [:]
 
         return serverDictionary.compactMapValues { value in
             guard let serverData = try? JSONSerialization.data(withJSONObject: value),
