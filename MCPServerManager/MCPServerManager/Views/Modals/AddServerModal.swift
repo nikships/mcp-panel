@@ -8,10 +8,16 @@ struct AddServerModal: View {
 
     // MARK: - Entry State
 
-    @State private var jsonText = ""
+    @State private var jsonText: String
     @State private var validationStatus: ValidationStatus = .none
     @State private var entryMode: EntryMode = .manual
     @State private var registryImages: [String: String] = [:]
+
+    init(isPresented: Binding<Bool>, viewModel: ServerViewModel, initialJSON: String? = nil) {
+        self._isPresented = isPresented
+        self._viewModel = ObservedObject(wrappedValue: viewModel)
+        self._jsonText = State(initialValue: initialJSON ?? "")
+    }
 
     // MARK: - Force Save State
 
@@ -42,6 +48,11 @@ struct AddServerModal: View {
             contentView
             Divider()
             footerView
+        }
+        .onAppear {
+            if !jsonText.isEmpty {
+                validateInput()
+            }
         }
         .frame(
             minWidth: 700,
