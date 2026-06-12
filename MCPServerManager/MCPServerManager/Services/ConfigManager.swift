@@ -216,6 +216,7 @@ extension UserDefaults {
         static let settings = "app_settings"
         static let servers = "cached_servers"
         static let hasCompletedOnboarding = "has_completed_onboarding"
+        static let sortMode = "server_sort_mode"
     }
 
     private func decode<T: Decodable>(_ type: T.Type, forKey key: String) -> T? {
@@ -240,5 +241,10 @@ extension UserDefaults {
     var hasCompletedOnboarding: Bool {
         get { bool(forKey: Keys.hasCompletedOnboarding) }
         set { set(newValue, forKey: Keys.hasCompletedOnboarding) }
+    }
+
+    var sortMode: SortMode {
+        get { SortMode(rawValue: string(forKey: Keys.sortMode) ?? "") ?? .name }
+        set { set(newValue.rawValue, forKey: Keys.sortMode) }
     }
 }

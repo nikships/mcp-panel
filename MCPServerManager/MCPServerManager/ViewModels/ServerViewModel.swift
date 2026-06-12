@@ -22,6 +22,12 @@ class ServerViewModel: ObservableObject {
     @Published var searchText: String = ""
     @Published var viewMode: ViewMode = .grid
     @Published var filterMode: FilterMode = .all
+    @Published var sortMode: SortMode = .name {
+        didSet {
+            guard sortMode != oldValue else { return }
+            UserDefaults.standard.sortMode = sortMode
+        }
+    }
     @Published var isLoading: Bool = false
     @Published var showOnboarding: Bool = false
     @Published var selectedServer: ServerModel?
@@ -68,6 +74,7 @@ class ServerViewModel: ObservableObject {
 
     init() {
         loadSettings()
+        sortMode = UserDefaults.standard.sortMode
 
         // Show onboarding if first time
         showOnboarding = !UserDefaults.standard.hasCompletedOnboarding
@@ -82,39 +89,6 @@ class ServerViewModel: ObservableObject {
     deinit {
         fileWatcher?.stop()
         healthCheckTasks.values.forEach { $0.cancel() }
-    }
-
-    // MARK: - Filtering & Searching
-
-    var filteredServers: [ServerModel] {
-        var filtered = servers
-
-        // Apply filter mode
-        switch filterMode {
-        case .all:
-            break
-        case .active:
-            filtered = filtered.filter { $0.enabled }
-        case .disabled:
-            filtered = filtered.filter { !$0.enabled }
-        case .recent:
-            // Servers modified within the last 24 hours, ordered most-recent first.
-            let cutoff = Date().addingTimeInterval(-24 * 60 * 60)
-            filtered = filtered
-                .filter { $0.updatedAt >= cutoff }
-                .sorted { $0.updatedAt > $1.updatedAt }
-        }
-
-        // Apply search
-        if !searchText.isEmpty {
-            filtered = filtered.filter { server in
-                server.name.localizedCaseInsensitiveContains(searchText) ||
-                server.config.summary.localizedCaseInsensitiveContains(searchText) ||
-                server.configJSON.localizedCaseInsensitiveContains(searchText)
-            }
-        }
-
-        return filtered
     }
 
     // MARK: - Settings Management

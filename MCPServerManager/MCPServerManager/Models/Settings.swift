@@ -148,6 +148,36 @@ enum FilterMode: String, Codable, CaseIterable {
     }
 }
 
+enum SortMode: String, Codable, CaseIterable {
+    case name
+    case enabledFirst
+    case recentlyModified
+
+    var displayName: String {
+        switch self {
+        case .name: return "Name (A→Z)"
+        case .enabledFirst: return "Enabled First"
+        case .recentlyModified: return "Recently Modified"
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .name: return "Name"
+        case .enabledFirst: return "Enabled"
+        case .recentlyModified: return "Recent"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .name: return "textformat.abc"
+        case .enabledFirst: return "checkmark.circle"
+        case .recentlyModified: return "clock"
+        }
+    }
+}
+
 // MARK: - Array Extension for Safe Access
 
 extension Array {
