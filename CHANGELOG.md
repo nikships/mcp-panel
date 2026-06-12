@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Inline Rename** - Edit a server's top-level JSON key in the card editor to rename it; collisions and empty names are rejected with a clear message.
 - **Transport Badge** - Each server card shows a transport badge (stdio / HTTP / SSE) at a glance, plus a context menu (Edit, Copy JSON, Delete) and improved accessibility labels.
 - **Server Health Checks** - Each server card now has a Check action that performs a lightweight health check: HTTP/SSE configs ping their endpoint with a short timeout, and stdio configs verify that the command resolves on PATH. Results appear inline on the card and in a toast.
+- **Sort Options** - A new sort control in the toolbar lets you order the server list by Name (A→Z, the default), Enabled first, or Recently modified. Sorting is applied alongside the active filter/search and your choice persists across launches.
 - **`servers` Wrapper Support** - Pasting configs wrapped in `"servers"` (the VS Code / GitHub Copilot format) now works just like `"mcpServers"`; the wrapper is unwrapped automatically.
 - **Paste a URL to Add** - Pasting a bare URL (e.g. `https://mcp.magicpatterns.com/mcp`) and clicking Add now creates an HTTP server keyed by the domain (e.g. `magicpatterns`). A missing scheme defaults to `https://`.
 
@@ -21,7 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Live Validation in Add Servers** - The Add Servers modal now validates the manual JSON as you type and shows inline valid/invalid feedback, so the separate **Validate** button has been removed. The editor is also syntax-highlighted, matching the Raw JSON editor.
 - **Single Config Model** - Simplified to a single active configuration. A server is either enabled (present in the config) or not, replacing the previous dual-config enabled-state arrays.
 - **⌘R Reloads From Disk** - The refresh button and ⌘R now reload servers from the config file instead of re-writing it.
-- **Real "Recent" Filter** - The Recent filter now shows servers modified within the last 24 hours, most-recent first.
+- **Real "Recent" Filter** - The Recent filter now shows servers modified within the last 24 hours; use the new "Recently modified" sort to order them most-recent first.
 - **Renamed to "MCP Panel"** - User-facing app name updated throughout the UI.
 - **Normal Dock App** - The app now shows in the Dock like a standard macOS app (activation policy `.regular`) while keeping the menu bar icon, instead of running as an accessory/menu-bar-only app.
 - **Simplified Theme Setting** - Removed the "Auto (Detect from Config)" theme option; the app now defaults to the Claude Code theme, and you can pick any of the built-in themes directly.

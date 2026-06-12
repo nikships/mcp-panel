@@ -148,6 +148,46 @@ enum FilterMode: String, Codable, CaseIterable {
     }
 }
 
+enum SortMode: String, Codable, CaseIterable {
+    case name
+    case enabledFirst
+    case recent
+
+    var displayName: String {
+        switch self {
+        case .name: return "Name (A→Z)"
+        case .enabledFirst: return "Enabled First"
+        case .recent: return "Recently Modified"
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .name: return "Name"
+        case .enabledFirst: return "Enabled"
+        case .recent: return "Recent"
+        }
+    }
+
+    /// Orders servers for display according to this sort mode.
+    func sorted(_ list: [ServerModel]) -> [ServerModel] {
+        switch self {
+        case .name:
+            return list.sorted { $0.name < $1.name }
+        case .enabledFirst:
+            return list.sorted {
+                if $0.enabled != $1.enabled { return $0.enabled }
+                return $0.name < $1.name
+            }
+        case .recent:
+            return list.sorted {
+                if $0.updatedAt != $1.updatedAt { return $0.updatedAt > $1.updatedAt }
+                return $0.name < $1.name
+            }
+        }
+    }
+}
+
 // MARK: - Array Extension for Safe Access
 
 extension Array {
