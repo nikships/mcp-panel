@@ -22,6 +22,7 @@ class ServerViewModel: ObservableObject {
     @Published var searchText: String = ""
     @Published var viewMode: ViewMode = .grid
     @Published var filterMode: FilterMode = .all
+    @Published var sortMode: SortMode = .name { didSet { UserDefaults.standard.sortMode = sortMode } }
     @Published var isLoading: Bool = false
     @Published var showOnboarding: Bool = false
     @Published var selectedServer: ServerModel?
@@ -68,6 +69,7 @@ class ServerViewModel: ObservableObject {
 
     init() {
         loadSettings()
+        sortMode = UserDefaults.standard.sortMode
 
         // Show onboarding if first time
         showOnboarding = !UserDefaults.standard.hasCompletedOnboarding
@@ -98,11 +100,9 @@ class ServerViewModel: ObservableObject {
         case .disabled:
             filtered = filtered.filter { !$0.enabled }
         case .recent:
-            // Servers modified within the last 24 hours, ordered most-recent first.
+            // Servers modified within the last 24 hours.
             let cutoff = Date().addingTimeInterval(-24 * 60 * 60)
-            filtered = filtered
-                .filter { $0.updatedAt >= cutoff }
-                .sorted { $0.updatedAt > $1.updatedAt }
+            filtered = filtered.filter { $0.updatedAt >= cutoff }
         }
 
         // Apply search
@@ -114,7 +114,8 @@ class ServerViewModel: ObservableObject {
             }
         }
 
-        return filtered
+        // Sorting is a view-only concern; the stored `servers` order stays stable.
+        return sortMode.sorted(filtered)
     }
 
     // MARK: - Settings Management

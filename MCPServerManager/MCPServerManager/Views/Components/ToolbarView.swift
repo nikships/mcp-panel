@@ -193,10 +193,49 @@ struct ToolbarView: View {
     @ViewBuilder
     private func rightSideActions() -> some View {
         HStack(spacing: 10) {
+            sortMenu()
             enableByTagMenu()
             toggleAllButton()
             refreshButton()
         }
+    }
+
+    @ViewBuilder
+    private func sortMenu() -> some View {
+        Menu {
+            ForEach(SortMode.allCases, id: \.self) { mode in
+                Button {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                        viewModel.sortMode = mode
+                    }
+                } label: {
+                    Label {
+                        Text(mode.displayName)
+                    } icon: {
+                        if viewModel.sortMode == mode {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.up.arrow.down")
+                    .font(.system(size: 13, weight: .medium))
+                Text(viewModel.sortMode.label)
+                    .font(DesignTokens.Typography.labelSmall)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .bold))
+                    .opacity(0.6)
+            }
+            .fixedSize(horizontal: true, vertical: false)
+            .modifier(ToolbarButtonStyle())
+        }
+        .buttonStyle(.plain)
+        .help("Sort servers")
+        .accessibilityLabel("Sort servers")
     }
 
     @ViewBuilder
