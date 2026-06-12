@@ -248,17 +248,16 @@ struct ContentView: View {
     /// Routes through the Add Server modal (pre-filled) so the user can review,
     /// rather than the silent import path.
     private func handleDrop(providers: [NSItemProvider]) -> Bool {
-        // Prefer a dropped file URL; fall back to plain text.
+        // Prefer a dropped .json file; fall back to plain text. Using
+        // `loadFileRepresentation` copies the file into a sandbox-readable temp
+        // location (a plain file URL fails under the App Store sandbox), and
+        // matching `UTType.json` means we only accept (and animate) real JSON.
         if let fileProvider = providers.first(where: {
-            $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier)
+            $0.hasItemConformingToTypeIdentifier(UTType.json.identifier)
         }) {
-            _ = fileProvider.loadObject(ofClass: URL.self) { url, _ in
-                guard let url, url.pathExtension.lowercased() == "json" else { return }
-                let accessing = url.startAccessingSecurityScopedResource()
-                defer {
-                    if accessing { url.stopAccessingSecurityScopedResource() }
-                }
-                guard let data = try? Data(contentsOf: url),
+            _ = fileProvider.loadFileRepresentation(forTypeIdentifier: UTType.json.identifier) { url, _ in
+                guard let url,
+                      let data = try? Data(contentsOf: url),
                       let jsonString = String(data: data, encoding: .utf8) else { return }
                 DispatchQueue.main.async {
                     presentAddServer(with: jsonString)

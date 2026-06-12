@@ -6,9 +6,13 @@ struct AddServerModal: View {
     @Environment(\.themeColors) private var themeColors
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
+    /// JSON to pre-fill the editor with (e.g. from a drag-and-drop), seeded on
+    /// appear and whenever it changes while the modal is open.
+    let initialJSON: String?
+
     // MARK: - Entry State
 
-    @State private var jsonText: String
+    @State private var jsonText = ""
     @State private var validationStatus: ValidationStatus = .none
     @State private var entryMode: EntryMode = .manual
     @State private var registryImages: [String: String] = [:]
@@ -16,7 +20,7 @@ struct AddServerModal: View {
     init(isPresented: Binding<Bool>, viewModel: ServerViewModel, initialJSON: String? = nil) {
         self._isPresented = isPresented
         self._viewModel = ObservedObject(wrappedValue: viewModel)
-        self._jsonText = State(initialValue: initialJSON ?? "")
+        self.initialJSON = initialJSON
     }
 
     // MARK: - Force Save State
@@ -50,7 +54,14 @@ struct AddServerModal: View {
             footerView
         }
         .onAppear {
-            if !jsonText.isEmpty {
+            if let initialJSON, !initialJSON.isEmpty {
+                jsonText = initialJSON
+                validateInput()
+            }
+        }
+        .onChange(of: initialJSON) { newValue in
+            if let newValue, !newValue.isEmpty {
+                jsonText = newValue
                 validateInput()
             }
         }
