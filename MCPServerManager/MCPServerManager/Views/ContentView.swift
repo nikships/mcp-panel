@@ -265,43 +265,126 @@ struct ContentView: View {
 
     // MARK: - Drop Handler
 
-    /// Handle JSON dropped onto the window: a `.json` file or plain text.
-    /// Routes through the Add Server modal (pre-filled) so the user can review,
-    /// rather than the silent import path.
+    /// Handle JSON dropped onto the window: a file from Finder or a block of
+    /// text. Routes through the Add Server modal (pre-filled) so the user can
+    /// review, rather than the silent import path.
+    ///
+    /// Finder file drags only register `public.file-url` — they do *not*
+    /// conform to `public.json` — so we match on `.fileURL` and read the file
+    /// at the resolved URL. Text drags from many sources (browsers,
+    /// Electron-based editors) promise plain text lazily, where
+    /// `loadObject(ofClass: NSString.self)` is unreliable, so text is loaded
+    /// from a raw data representation first.
     private func handleDrop(providers: [NSItemProvider]) -> Bool {
-        // Prefer a dropped .json file; fall back to plain text. Using
-        // `loadFileRepresentation` copies the file into a sandbox-readable temp
-        // location (a plain file URL fails under the App Store sandbox), and
-        // matching `UTType.json` means we only accept (and animate) real JSON.
         if let fileProvider = providers.first(where: {
-            $0.hasItemConformingToTypeIdentifier(UTType.json.identifier)
+            $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier)
         }) {
-            _ = fileProvider.loadFileRepresentation(forTypeIdentifier: UTType.json.identifier) { url, _ in
-                guard let url,
-                      let data = try? Data(contentsOf: url),
-                      let jsonString = String(data: data, encoding: .utf8) else { return }
-                DispatchQueue.main.async {
-                    presentAddServer(with: jsonString)
-                }
-            }
+            loadDroppedFile(from: fileProvider)
             return true
         }
 
         if let textProvider = providers.first(where: {
-            $0.canLoadObject(ofClass: NSString.self)
+            $0.hasItemConformingToTypeIdentifier(UTType.text.identifier)
+                || $0.canLoadObject(ofClass: NSString.self)
         }) {
-            _ = textProvider.loadObject(ofClass: NSString.self) { text, _ in
-                guard let text = text as? String else { return }
-                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty else { return }
-                DispatchQueue.main.async {
-                    presentAddServer(with: trimmed)
-                }
-            }
+            loadDroppedText(from: textProvider)
             return true
         }
 
         return false
+    }
+
+    /// Read a dropped file's contents and present the Add Server modal.
+    private func loadDroppedFile(from provider: NSItemProvider) {
+        provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { (item: NSSecureCoding?, _: Error?) in
+            guard let url = fileURL(from: item) else {
+                reportDropFailure()
+                return
+            }
+            let accessing = url.startAccessingSecurityScopedResource()
+            defer {
+                if accessing {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+            guard let data = try? Data(contentsOf: url),
+                  let jsonString = String(data: data, encoding: .utf8) else {
+                reportDropFailure()
+                return
+            }
+            DispatchQueue.main.async {
+                presentAddServer(with: jsonString)
+            }
+        }
+    }
+
+    /// Decode the file URL handed back by `loadItem`, which arrives as raw
+    /// URL bytes (`Data`), an `NSURL`, or a string depending on the source.
+    private func fileURL(from item: NSSecureCoding?) -> URL? {
+        if let data = item as? Data {
+            return URL(dataRepresentation: data, relativeTo: nil)
+        }
+        if let url = item as? URL {
+            return url
+        }
+        if let string = item as? String {
+            return URL(string: string)
+        }
+        return nil
+    }
+
+    /// Load dropped text, preferring a raw plain-text data representation
+    /// (reliable across drag sources) and falling back to `NSString`.
+    private func loadDroppedText(from provider: NSItemProvider) {
+        let plainTextType = provider.registeredTypeIdentifiers.first {
+            UTType($0)?.conforms(to: .plainText) == true
+        }
+        guard let plainTextType else {
+            loadDroppedTextObject(from: provider)
+            return
+        }
+        _ = provider.loadDataRepresentation(forTypeIdentifier: plainTextType) { data, _ in
+            if let data, let text = String(data: data, encoding: .utf8) {
+                presentDroppedText(text)
+            } else {
+                loadDroppedTextObject(from: provider)
+            }
+        }
+    }
+
+    /// Fallback text path: let Foundation coerce whatever the provider has
+    /// into a string.
+    private func loadDroppedTextObject(from provider: NSItemProvider) {
+        guard provider.canLoadObject(ofClass: NSString.self) else {
+            reportDropFailure()
+            return
+        }
+        _ = provider.loadObject(ofClass: NSString.self) { text, _ in
+            guard let text = text as? String else {
+                reportDropFailure()
+                return
+            }
+            presentDroppedText(text)
+        }
+    }
+
+    /// Trim and present dropped text, ignoring whitespace-only drops.
+    private func presentDroppedText(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            reportDropFailure()
+            return
+        }
+        DispatchQueue.main.async {
+            presentAddServer(with: trimmed)
+        }
+    }
+
+    /// Surface a toast instead of failing silently when a drop can't be read.
+    private func reportDropFailure() {
+        DispatchQueue.main.async {
+            viewModel.showToast(message: "Couldn't read the dropped JSON", type: .error)
+        }
     }
 
     /// Pre-fill the Add Server modal with the given text and present it.
