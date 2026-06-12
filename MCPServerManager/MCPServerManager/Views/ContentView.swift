@@ -30,6 +30,7 @@ struct ContentView: View {
                 AddServerModal(isPresented: $showAddServer, viewModel: viewModel, initialJSON: droppedJSON)
             }
             dropTargetOverlay
+            keyboardShortcuts
         }
         .environment(\.themeColors, viewModel.themeColors)
         .environment(\.currentTheme, viewModel.currentTheme)
@@ -66,6 +67,26 @@ struct ContentView: View {
         } message: {
             Text("The imported file contains validation errors:\n\n\(importInvalidServerDetails)\n\nDo you want to force import anyway?")
         }
+    }
+
+    // MARK: - Keyboard Shortcuts
+
+    // Hidden buttons that attach standard macOS shortcuts: ⌘N opens the Add
+    // Server modal and ⌘, opens Settings. (⌘F lives in HeaderView next to the
+    // search field, and ⌘R in ToolbarView.)
+    @ViewBuilder
+    private var keyboardShortcuts: some View {
+        Group {
+            Button { showAddServer = true } label: { EmptyView() }
+                .keyboardShortcut("n", modifiers: .command)
+
+            Button { showSettings = true } label: { EmptyView() }
+                .keyboardShortcut(",", modifiers: .command)
+        }
+        .buttonStyle(.plain)
+        .frame(width: 0, height: 0)
+        .opacity(0)
+        .accessibilityHidden(true)
     }
 
     // MARK: - View Components
