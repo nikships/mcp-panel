@@ -12,6 +12,8 @@ struct ContentView: View {
     @State private var showImportForceAlert = false
     @State private var importInvalidServerDetails = ""
     @State private var pendingImportServers: [String: ServerConfig]?
+    @State private var droppedJSON: String?
+    @State private var isDropTargeted = false
 
     var body: some View {
         ZStack {
@@ -25,12 +27,21 @@ struct ContentView: View {
                 SettingsModal(isPresented: $showSettings, viewModel: viewModel)
             }
             modalOverlay(isPresented: showAddServer) {
-                AddServerModal(isPresented: $showAddServer, viewModel: viewModel)
+                AddServerModal(isPresented: $showAddServer, viewModel: viewModel, initialJSON: droppedJSON)
             }
+            dropTargetOverlay
         }
         .environment(\.themeColors, viewModel.themeColors)
         .environment(\.currentTheme, viewModel.currentTheme)
         .frame(minWidth: 900, minHeight: 600)
+        .onDrop(of: [.fileURL, .text], isTargeted: $isDropTargeted) { providers in
+            handleDrop(providers: providers)
+        }
+        .onChange(of: showAddServer) { isShowing in
+            if !isShowing {
+                droppedJSON = nil
+            }
+        }
         .fileImporter(
             isPresented: $showImporter,
             allowedContentTypes: [.json],
@@ -182,6 +193,40 @@ struct ContentView: View {
     }
 
     @ViewBuilder
+    private var dropTargetOverlay: some View {
+        if isDropTargeted {
+            ZStack {
+                viewModel.themeColors.primaryAccent.opacity(0.12)
+                    .ignoresSafeArea()
+
+                VStack(spacing: 16) {
+                    Image(systemName: "arrow.down.doc.fill")
+                        .font(.system(size: 48))
+                        .foregroundColor(viewModel.themeColors.primaryAccent)
+                    Text("Drop JSON to add servers")
+                        .font(DesignTokens.Typography.bodyLarge)
+                }
+                .padding(40)
+                .background(
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(Color(nsColor: .windowBackgroundColor))
+                        .shadow(radius: 30)
+                )
+            }
+            .overlay(
+                RoundedRectangle(cornerRadius: 0)
+                    .strokeBorder(
+                        viewModel.themeColors.primaryAccent,
+                        style: StrokeStyle(lineWidth: 3, dash: [12, 8])
+                    )
+                    .ignoresSafeArea()
+            )
+            .transition(.opacity)
+            .allowsHitTesting(false)
+        }
+    }
+
+    @ViewBuilder
     private func modalOverlay<Content: View>(
         isPresented: Bool,
         @ViewBuilder content: () -> Content
@@ -195,6 +240,53 @@ struct ContentView: View {
             }
             .transition(.opacity)
         }
+    }
+
+    // MARK: - Drop Handler
+
+    /// Handle JSON dropped onto the window: a `.json` file or plain text.
+    /// Routes through the Add Server modal (pre-filled) so the user can review,
+    /// rather than the silent import path.
+    private func handleDrop(providers: [NSItemProvider]) -> Bool {
+        // Prefer a dropped .json file; fall back to plain text. Using
+        // `loadFileRepresentation` copies the file into a sandbox-readable temp
+        // location (a plain file URL fails under the App Store sandbox), and
+        // matching `UTType.json` means we only accept (and animate) real JSON.
+        if let fileProvider = providers.first(where: {
+            $0.hasItemConformingToTypeIdentifier(UTType.json.identifier)
+        }) {
+            _ = fileProvider.loadFileRepresentation(forTypeIdentifier: UTType.json.identifier) { url, _ in
+                guard let url,
+                      let data = try? Data(contentsOf: url),
+                      let jsonString = String(data: data, encoding: .utf8) else { return }
+                DispatchQueue.main.async {
+                    presentAddServer(with: jsonString)
+                }
+            }
+            return true
+        }
+
+        if let textProvider = providers.first(where: {
+            $0.canLoadObject(ofClass: NSString.self)
+        }) {
+            _ = textProvider.loadObject(ofClass: NSString.self) { text, _ in
+                guard let text = text as? String else { return }
+                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { return }
+                DispatchQueue.main.async {
+                    presentAddServer(with: trimmed)
+                }
+            }
+            return true
+        }
+
+        return false
+    }
+
+    /// Pre-fill the Add Server modal with the given text and present it.
+    private func presentAddServer(with json: String) {
+        droppedJSON = json
+        showAddServer = true
     }
 
     // MARK: - Import Handler
