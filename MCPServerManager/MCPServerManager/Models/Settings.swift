@@ -180,7 +180,10 @@ enum SortMode: String, Codable, CaseIterable {
                 return $0.name < $1.name
             }
         case .recent:
-            return list.sorted { $0.updatedAt > $1.updatedAt }
+            return list.sorted {
+                if $0.updatedAt != $1.updatedAt { return $0.updatedAt > $1.updatedAt }
+                return $0.name < $1.name
+            }
         }
     }
 }
