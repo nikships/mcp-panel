@@ -28,9 +28,12 @@ class ServerViewModel: ObservableObject {
     @Published var showToast: Bool = false
     @Published var toastMessage: String = ""
     @Published var toastType: ToastType = .success
+    @Published var healthStatuses: [UUID: ServerHealthStatus] = [:]
 
     private let configManager = ConfigManager.shared
+    private let healthChecker = ServerHealthChecker()
     private var skipSync = false
+    private var healthCheckTasks: [UUID: Task<Void, Never>] = [:]
 
     // MARK: - Live File Watching
 
@@ -78,6 +81,7 @@ class ServerViewModel: ObservableObject {
 
     deinit {
         fileWatcher?.stop()
+        healthCheckTasks.values.forEach { $0.cancel() }
     }
 
     // MARK: - Filtering & Searching
@@ -168,6 +172,7 @@ class ServerViewModel: ObservableObject {
             do {
                 let config = try configManager.readConfig(from: settings.configPath)
                 servers = mergeConfig(config)
+                pruneHealthStatuses()
             } catch {
                 #if DEBUG
                 print("Error loading servers: \(error)")
@@ -662,6 +667,42 @@ class ServerViewModel: ObservableObject {
                 showToast = false
             }
         }
+    }
+}
+
+// MARK: - Health Checks
+
+extension ServerViewModel {
+    func healthStatus(for server: ServerModel) -> ServerHealthStatus {
+        healthStatuses[server.id] ?? .unchecked
+    }
+
+    func checkHealth(for server: ServerModel) {
+        guard healthCheckTasks[server.id] == nil else { return }
+
+        healthStatuses[server.id] = .checking
+        let serverID = server.id
+        let serverName = server.name
+
+        healthCheckTasks[serverID] = Task { [healthChecker] in
+            let result = await healthChecker.check(server)
+
+            await MainActor.run {
+                healthStatuses[serverID] = result
+                healthCheckTasks[serverID] = nil
+
+                let toastType: ToastType = {
+                    if case .authRequired = result { return .warning }
+                    return result.isFailure ? .error : .success
+                }()
+                showToast(message: "\(serverName): \(result.message)", type: toastType)
+            }
+        }
+    }
+
+    private func pruneHealthStatuses() {
+        let currentIDs = Set(servers.map(\.id))
+        healthStatuses = healthStatuses.filter { currentIDs.contains($0.key) }
     }
 }
 

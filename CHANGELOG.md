@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **JSON Syntax Highlighting** - Server config previews, the inline card editor, the Raw JSON editor, and the Add Servers editor now render theme-aware, syntax-highlighted JSON (keys, strings, numbers, booleans/null, and punctuation), with caching for smooth scrolling.
 - **Inline Rename** - Edit a server's top-level JSON key in the card editor to rename it; collisions and empty names are rejected with a clear message.
 - **Transport Badge** - Each server card shows a transport badge (stdio / HTTP / SSE) at a glance, plus a context menu (Edit, Copy JSON, Delete) and improved accessibility labels.
+- **Server Health Checks** - Each server card now has a Check action that performs a lightweight health check: HTTP/SSE configs ping their endpoint with a short timeout, and stdio configs verify that the command resolves on PATH. Results appear inline on the card and in a toast.
 - **`servers` Wrapper Support** - Pasting configs wrapped in `"servers"` (the VS Code / GitHub Copilot format) now works just like `"mcpServers"`; the wrapper is unwrapped automatically.
 - **Paste a URL to Add** - Pasting a bare URL (e.g. `https://mcp.magicpatterns.com/mcp`) and clicking Add now creates an HTTP server keyed by the domain (e.g. `magicpatterns`). A missing scheme defaults to `https://`.
 

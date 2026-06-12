@@ -3,6 +3,7 @@ import SwiftUI
 
 struct ServerCardView: View {
     let server: ServerModel
+    let healthStatus: ServerHealthStatus
     @Binding var confirmDelete: Bool
     @Binding var blurJSONPreviews: Bool
     @State private var isEditing = false
@@ -29,6 +30,7 @@ struct ServerCardView: View {
     let onDelete: () -> Void
     let onUpdate: (String) -> ServerUpdateResult
     let onUpdateForced: (ServerConfig) -> Bool
+    let onCheckHealth: () -> Void
     let onCustomIconSelected: ((Result<String, Error>) -> Void)?
 
     var body: some View {
@@ -48,6 +50,13 @@ struct ServerCardView: View {
             } label: {
                 Label("Edit", systemImage: "pencil")
             }
+
+            Button {
+                onCheckHealth()
+            } label: {
+                Label("Check", systemImage: "checkmark.shield")
+            }
+            .disabled(healthStatus == .checking)
 
             Button {
                 copyConfigToPasteboard()
@@ -96,7 +105,10 @@ struct ServerCardView: View {
                     .lineLimit(2)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                TransportBadge(label: transportLabel, themeColors: themeColors)
+                HStack(spacing: 6) {
+                    TransportBadge(label: transportLabel, themeColors: themeColors)
+                    HealthStatusIndicator(status: healthStatus, themeColors: themeColors)
+                }
             }
 
             Spacer(minLength: 8)
@@ -264,6 +276,24 @@ struct ServerCardView: View {
 
             Spacer()
 
+            Button(action: onCheckHealth) {
+                Label("Check", systemImage: "checkmark.shield")
+                    .font(DesignTokens.Typography.labelSmall)
+                    .labelStyle(.titleAndIcon)
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(themeColors.primaryText)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 6)
+            .background(
+                Capsule()
+                    .fill(themeColors.glassBackground)
+                    .overlay(Capsule().stroke(themeColors.borderColor, lineWidth: 1))
+            )
+            .disabled(healthStatus == .checking)
+            .help(healthStatus.message)
+            .accessibilityLabel("Check \(server.name) health")
+
             Button(action: handleDeleteTapped) {
                 Image(systemName: "trash")
                     .foregroundColor(themeColors.errorColor)
@@ -360,6 +390,67 @@ private struct PreviewBlur: ViewModifier {
             content.blur(radius: DesignTokens.jsonPreviewBlurRadius)
         } else {
             content
+        }
+    }
+}
+
+// MARK: - Health Status
+
+private struct HealthStatusIndicator: View {
+    let status: ServerHealthStatus
+    let themeColors: ThemeColors
+
+    var body: some View {
+        HStack(spacing: 5) {
+            if status == .checking {
+                ProgressView()
+                    .controlSize(.small)
+                    .scaleEffect(0.55)
+                    .frame(width: 10, height: 10)
+            } else {
+                Circle()
+                    .fill(statusColor)
+                    .frame(width: 8, height: 8)
+            }
+
+            Text(statusLabel)
+                .font(DesignTokens.Typography.captionSmall)
+                .foregroundColor(themeColors.secondaryText)
+                .lineLimit(1)
+        }
+        .help(status.message)
+        .accessibilityLabel("Health status: \(status.message)")
+    }
+
+    private var statusLabel: String {
+        switch status {
+        case .unchecked:
+            return "Not checked"
+        case .checking:
+            return "Checking"
+        case .reachable:
+            return "Reachable"
+        case .authRequired:
+            return "Auth required"
+        case .unreachable:
+            return "Unreachable"
+        case .unsupported:
+            return "Unsupported"
+        }
+    }
+
+    private var statusColor: Color {
+        switch status {
+        case .unchecked:
+            return themeColors.mutedText.opacity(0.7)
+        case .checking:
+            return themeColors.primaryAccent
+        case .reachable:
+            return themeColors.successColor
+        case .authRequired:
+            return themeColors.warningColor
+        case .unreachable, .unsupported:
+            return themeColors.errorColor
         }
     }
 }

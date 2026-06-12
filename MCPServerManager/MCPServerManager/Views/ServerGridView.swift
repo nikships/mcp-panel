@@ -15,6 +15,7 @@ struct ServerGridView: View {
                     ForEach(viewModel.filteredServers) { server in
                         ServerCardView(
                             server: server,
+                            healthStatus: viewModel.healthStatus(for: server),
                             confirmDelete: $viewModel.settings.confirmDelete,
                             blurJSONPreviews: $viewModel.settings.blurJSONPreviews,
                             onToggle: {
@@ -31,6 +32,9 @@ struct ServerGridView: View {
                             },
                             onUpdateForced: { config in
                                 viewModel.updateServerForced(server, config: config)
+                            },
+                            onCheckHealth: {
+                                viewModel.checkHealth(for: server)
                             },
                             onCustomIconSelected: { result in
                                 viewModel.updateCustomIcon(for: server, result: result)
