@@ -205,6 +205,19 @@ private struct SearchField: View {
         )
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isFocused)
         .animation(.easeInOut(duration: 0.15), value: text.isEmpty)
+        .background(
+            // Hidden button that wires ⌘F to focus the search field.
+            Button {
+                fieldFocused = true
+            } label: {
+                EmptyView()
+            }
+            .buttonStyle(.plain)
+            .frame(width: 0, height: 0)
+            .opacity(0)
+            .accessibilityHidden(true)
+            .keyboardShortcut("f", modifiers: .command)
+        )
     }
 }
 
