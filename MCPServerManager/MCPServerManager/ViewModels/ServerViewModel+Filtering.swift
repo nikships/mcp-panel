@@ -33,6 +33,8 @@ extension ServerViewModel {
     }
 
     /// Apply the active sort order. Ties fall back to a stable A→Z by name.
+    /// This is a view concern only: it returns a new array and never mutates the
+    /// stored `servers`, so the on-disk/synced order stays stable.
     private func sorted(_ servers: [ServerModel]) -> [ServerModel] {
         switch sortMode {
         case .name:
