@@ -9,7 +9,6 @@ struct HeaderView: View {
     @Binding var showQuickActions: Bool
     @Environment(\.themeColors) private var themeColors
     @State private var isSearchFocused = false
-    @FocusState private var searchFieldFocused: Bool
 
     var body: some View {
         HStack(spacing: 0) {
@@ -40,7 +39,7 @@ struct HeaderView: View {
 
             // Right: Search + Settings
             HStack(spacing: 12) {
-                SearchField(text: $viewModel.searchText, isFocused: $isSearchFocused, focused: $searchFieldFocused)
+                SearchField(text: $viewModel.searchText, isFocused: $isSearchFocused)
 
                 Divider()
                     .frame(height: 24)
@@ -52,21 +51,6 @@ struct HeaderView: View {
         .padding(.horizontal, 20)
         .padding(.vertical, 14)
         .modifier(LiquidGlassModifier(shape: Rectangle(), fillColor: themeColors.sidebarBackground.opacity(0.8)))
-        .background(searchShortcut)
-    }
-
-    // Hidden button that wires ⌘F to focus the search field.
-    private var searchShortcut: some View {
-        Button {
-            searchFieldFocused = true
-        } label: {
-            EmptyView()
-        }
-        .buttonStyle(.plain)
-        .frame(width: 0, height: 0)
-        .opacity(0)
-        .accessibilityHidden(true)
-        .keyboardShortcut("f", modifiers: .command)
     }
 }
 
@@ -176,8 +160,8 @@ private struct ActiveConfigLabel: View {
 private struct SearchField: View {
     @Binding var text: String
     @Binding var isFocused: Bool
-    var focused: FocusState<Bool>.Binding
     @Environment(\.themeColors) private var themeColors
+    @FocusState private var fieldFocused: Bool
 
     var body: some View {
         HStack(spacing: 8) {
@@ -188,8 +172,8 @@ private struct SearchField: View {
             TextField("Search...", text: $text)
                 .textFieldStyle(.plain)
                 .font(DesignTokens.Typography.body)
-                .focused(focused)
-                .onChange(of: focused.wrappedValue) { newValue in
+                .focused($fieldFocused)
+                .onChange(of: fieldFocused) { newValue in
                     withAnimation(.easeInOut(duration: 0.2)) {
                         isFocused = newValue
                     }
@@ -221,6 +205,19 @@ private struct SearchField: View {
         )
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isFocused)
         .animation(.easeInOut(duration: 0.15), value: text.isEmpty)
+        .background(
+            // Hidden button that wires ⌘F to focus the search field.
+            Button {
+                fieldFocused = true
+            } label: {
+                EmptyView()
+            }
+            .buttonStyle(.plain)
+            .frame(width: 0, height: 0)
+            .opacity(0)
+            .accessibilityHidden(true)
+            .keyboardShortcut("f", modifiers: .command)
+        )
     }
 }
 
