@@ -20,6 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Paste a URL to Add** - Pasting a bare URL (e.g. `https://mcp.magicpatterns.com/mcp`) and clicking Add now creates an HTTP server keyed by the domain (e.g. `magicpatterns`). A missing scheme defaults to `https://`.
 
 ### Changed
+- **"All Off" Button** - The toolbar's all-servers toggle switch is now a plain **All Off** button (power icon). It always disables every server in one click, replacing the previous switch that flipped all servers on or off depending on their current state.
 - **Live Validation in Add Servers** - The Add Servers modal now validates the manual JSON as you type and shows inline valid/invalid feedback, so the separate **Validate** button has been removed. The editor is also syntax-highlighted, matching the Raw JSON editor.
 - **Single Config Model** - Simplified to a single active configuration. A server is either enabled (present in the config) or not, replacing the previous dual-config enabled-state arrays.
 - **⌘R Reloads From Disk** - The refresh button and ⌘R now reload servers from the config file instead of re-writing it.

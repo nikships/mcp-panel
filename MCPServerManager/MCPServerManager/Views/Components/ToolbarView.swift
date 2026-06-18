@@ -195,7 +195,7 @@ struct ToolbarView: View {
         HStack(spacing: 10) {
             sortMenu()
             enableByTagMenu()
-            toggleAllButton()
+            allOffButton()
             refreshButton()
         }
     }
@@ -271,51 +271,26 @@ struct ToolbarView: View {
     }
 
     @ViewBuilder
-    private func toggleAllButton() -> some View {
-        let allEnabled = viewModel.servers.allSatisfy { $0.enabled }
-
+    private func allOffButton() -> some View {
         Button {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
-                viewModel.toggleAllServers(!allEnabled)
+                viewModel.toggleAllServers(false)
             }
         } label: {
-            HStack(spacing: 8) {
-                Text(allEnabled ? "All Off" : "All On")
+            HStack(spacing: 6) {
+                Image(systemName: "power")
+                    .font(.system(size: 13, weight: .medium))
+                Text("All Off")
                     .font(DesignTokens.Typography.labelSmall)
-                    .foregroundColor(themeColors.primaryText)
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
-
-                // Modern toggle switch
-                ZStack {
-                    Capsule()
-                        .fill(allEnabled ? themeColors.successColor : themeColors.glassBackground)
-                        .overlay(
-                            Capsule()
-                                .stroke(allEnabled ? Color.clear : themeColors.borderColor, lineWidth: 1)
-                        )
-                        .frame(width: 40, height: 22)
-
-                    Circle()
-                        .fill(Color.white)
-                        .frame(width: 16, height: 16)
-                        .shadow(color: .black.opacity(0.15), radius: 2, x: 0, y: 1)
-                        .offset(x: allEnabled ? 9 : -9)
-                }
             }
             .fixedSize(horizontal: true, vertical: false)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 4)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(themeColors.glassBackground)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(themeColors.borderColor, lineWidth: 1)
-                    )
-            )
+            .modifier(ToolbarButtonStyle())
         }
         .buttonStyle(.plain)
+        .help("Turn off all servers")
+        .accessibilityLabel("Turn off all servers")
     }
 
     @ViewBuilder
