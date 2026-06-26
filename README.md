@@ -49,9 +49,11 @@ Download the latest DMG from [GitHub Releases](https://github.com/anand-92/mcp-p
 
 ```bash
 cd MCPServerManager
-swift run                       # Build & run in development mode
-swift build -c release          # Release binary only
+swift run MCPServerManager      # Build & run the app in development mode
+swift build -c release          # Release binaries only
 ```
+
+> The package has two executables (`MCPServerManager` and `mcp-panel`), so pass the product name to `swift run`.
 
 Linting (SwiftLint):
 
@@ -109,6 +111,24 @@ Open via the gear icon. Tabs:
 - **Appearance**: Theme picker (13 themes), window opacity, font scale
 - **Privacy**: Blur JSON previews, fetch server logos toggle
 - **Advanced**: Network and debug options
+
+## Command-Line Interface
+
+MCP Panel ships with **`mcp-panel`**, an agent-first CLI for scripting the same configuration the app manages. It's a separate executable in the Swift package:
+
+```bash
+cd MCPServerManager
+swift build -c release
+.build/release/mcp-panel --help          # or copy it onto your PATH
+```
+
+```bash
+mcp-panel list                       # List servers + enabled/disabled status (JSON)
+mcp-panel add <name> '<mcp-json>'    # Add/update a server from raw MCP JSON (arg or stdin)
+mcp-panel toggle <name> [on|off]     # Enable/disable a server (no arg flips state)
+```
+
+Enabled servers are written to `~/.claude.json`; disabled servers are remembered in MCP Panel's shared cache, so the CLI and the app always agree. Output is JSON on stdout and errors are JSON on stderr with non-zero exit codes — designed for coding agents. A ready-to-use agent skill lives in [`skills/mcp-panel-cli/`](skills/mcp-panel-cli/SKILL.md). The CLI is not part of the sandboxed Mac App Store build.
 
 ## Configuration Format
 
