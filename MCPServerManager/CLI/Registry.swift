@@ -111,11 +111,16 @@ struct ServerRegistry {
         for (name, entry) in entries where (entry["enabled"] as? Bool) == true {
             enabled[name] = (entry["config"] as? [String: Any]) ?? [:]
         }
-        try configStore.writeServers(enabled)
 
+        // Write the cache (full list, incl. disabled) BEFORE the live config: if
+        // the cache write fails we must not have already mutated ~/.claude.json
+        // and lost the remembered disabled-state. The app treats the file as the
+        // source of truth for "enabled", so a cache-ahead state self-heals on its
+        // next load, whereas a file-ahead state can drop a disabled server's config.
         if cacheStore.isWritable {
             let ordered = sortedNames().compactMap { entries[$0] }
             try cacheStore.writeCachedServers(ordered)
         }
+        try configStore.writeServers(enabled)
     }
 }

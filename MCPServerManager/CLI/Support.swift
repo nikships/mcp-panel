@@ -112,10 +112,18 @@ enum ServerSummary {
         if let httpURL = config["httpUrl"] as? String, !httpURL.trimmedWhitespace.isEmpty {
             return "http"
         }
-        if let transport = config["transport"] as? [String: Any], let type = transport["type"] as? String {
-            return type
+        if let transport = config["transport"] as? [String: Any] {
+            if let type = (transport["type"] as? String)?.lowercased(), !type.isEmpty {
+                return type
+            }
+            if let url = transport["url"] as? String, !url.trimmedWhitespace.isEmpty {
+                return "http"
+            }
         }
         if let url = config["url"] as? String, !url.trimmedWhitespace.isEmpty {
+            return "http"
+        }
+        if remoteURL(in: config) != nil {
             return "http"
         }
         return "custom"
@@ -131,10 +139,25 @@ enum ServerSummary {
                 return host(of: value) ?? value
             }
         }
-        if let transport = config["transport"] as? [String: Any], let url = transport["url"] as? String {
+        if let transport = config["transport"] as? [String: Any],
+           let url = transport["url"] as? String, !url.trimmedWhitespace.isEmpty {
             return host(of: url) ?? url
         }
+        if let remote = remoteURL(in: config) {
+            return host(of: remote) ?? remote
+        }
         return "custom server"
+    }
+
+    /// First non-empty `url` among a config's `remotes` entries, if any.
+    private static func remoteURL(in config: [String: Any]) -> String? {
+        guard let remotes = config["remotes"] as? [[String: Any]] else { return nil }
+        for remote in remotes {
+            if let url = remote["url"] as? String, !url.trimmedWhitespace.isEmpty {
+                return url
+            }
+        }
+        return nil
     }
 
     private static func host(of urlString: String) -> String? {

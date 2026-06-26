@@ -32,7 +32,7 @@ The CLI ships with the MCP Panel source as a separate executable in the Swift pa
 cd MCPServerManager
 swift build -c release
 # binary: .build/release/mcp-panel
-cp .build/release/mcp-panel /usr/local/bin/mcp-panel   # optional: put it on PATH
+mkdir -p ~/.local/bin && cp .build/release/mcp-panel ~/.local/bin/mcp-panel   # optional; ensure ~/.local/bin is on PATH
 ```
 
 If `mcp-panel` is already on PATH, call it directly.
@@ -101,7 +101,7 @@ In automation, prefer the explicit `on` / `off` form: it is idempotent and repor
   pressing ⌘R in the app forces an immediate refresh.
 - **No remove:** this CLI only adds, lists, and toggles. Deleting is done in the app.
 - **Exit codes:** `0` success, `64` usage error, `65` bad/invalid JSON, `69` server not
-  found, `74` I/O error.
+  found, `74` I/O error, `70` unexpected error.
 
 ## Recipes
 
@@ -109,9 +109,8 @@ In automation, prefer the explicit `on` / `off` form: it is idempotent and repor
 # Is a server already configured, and is it active?
 mcp-panel list | jq '.servers[] | select(.name=="context7") | {enabled, transport}'
 
-# Add if missing, then make sure it is enabled
+# Add a server (add enables it automatically)
 mcp-panel add context7 '{"command":"npx","args":["-y","@upstash/context7-mcp"]}'
-mcp-panel toggle context7 on
 
 # Temporarily disable a server without losing its config
 mcp-panel toggle filesystem off

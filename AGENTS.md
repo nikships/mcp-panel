@@ -24,7 +24,7 @@ cd MCPServerManager && swift build -c release        # Release binaries (.build 
 ./build-local-dev.sh --launch                        # Bundle, sign, embed Sparkle, launch
 ```
 
-The package now has two executable products (`MCPServerManager` and `mcp-panel`), so pass the product name to `swift run` — bare `swift run` is ambiguous. This machine has Command Line Tools only (no full Xcode), so `xcodebuild` is unavailable; use `swift build`. There is no automated test suite — verify changes by building and launching.
+The package now has two executable products (`MCPServerManager` and `mcp-panel`), so pass the product name to `swift run` — bare `swift run` is ambiguous. Full Xcode is not required for day-to-day development: `swift build` compiles the package, while `xcodegen` + `xcodebuild` are only needed to produce signed `.app` / App Store builds. There is no automated test suite — verify changes by building and launching.
 
 ### Linting
 

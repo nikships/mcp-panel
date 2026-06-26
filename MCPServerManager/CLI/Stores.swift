@@ -5,7 +5,15 @@ import Foundation
 /// Resolves the filesystem locations the CLI reads from and writes to.
 enum Paths {
     static let defaultConfigPath = "~/.claude.json"
-    static let appBundleIdentifier = "com.mcpmanager.app"
+
+    /// The app's bundle identifier(s) — the domain for its UserDefaults and its
+    /// sandbox container. `com.mcpmanager.app` is authoritative: it is the
+    /// `PRODUCT_BUNDLE_IDENTIFIER` in `project.yml` and the `CFBundleIdentifier`
+    /// written by both build scripts. (`bundleIdPrefix: com.anand-92` is only a
+    /// default for targets without an explicit id, and `group.com.anand-92.mcp-panel`
+    /// was a separate App Group namespace.) The prefix-derived id is kept as a
+    /// fallback so the CLI still locates the container if an older build used it.
+    static let appBundleIdentifiers = ["com.mcpmanager.app", "com.anand-92.mcp-panel"]
 
     static func expand(_ path: String) -> String {
         (path as NSString).expandingTildeInPath
@@ -17,7 +25,8 @@ enum Paths {
 
     /// Candidate locations for MCP Panel's UserDefaults plist, most specific
     /// first: an explicit override, the sandbox container (App Store / signed
-    /// build), then the non-sandboxed location (a plain `swift run`).
+    /// build), then the non-sandboxed location (a plain `swift run`). Each
+    /// bundle identifier is probed in priority order.
     static func defaultsCandidates(override: String?) -> [String] {
         var candidates: [String] = []
         if let override, !override.trimmedWhitespace.isEmpty {
@@ -26,9 +35,11 @@ enum Paths {
         if let env = ProcessInfo.processInfo.environment["MCP_PANEL_DEFAULTS_PLIST"], !env.isEmpty {
             candidates.append(expand(env))
         }
-        let prefs = "Library/Preferences/\(appBundleIdentifier).plist"
-        candidates.append("\(home)/Library/Containers/\(appBundleIdentifier)/Data/\(prefs)")
-        candidates.append("\(home)/\(prefs)")
+        for identifier in appBundleIdentifiers {
+            let prefs = "Library/Preferences/\(identifier).plist"
+            candidates.append("\(home)/Library/Containers/\(identifier)/Data/\(prefs)")
+            candidates.append("\(home)/\(prefs)")
+        }
         return candidates
     }
 }

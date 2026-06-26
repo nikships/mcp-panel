@@ -28,6 +28,14 @@ enum MCPPanelCLI {
         var index = 0
         while index < arguments.count {
             let arg = arguments[index]
+            // Global flags are only recognized before the command token. Once a
+            // positional (the command) has been seen, everything after it is
+            // command data — so a server literally named `help` or an argument
+            // like `--config` is passed through untouched.
+            if !positionals.isEmpty {
+                positionals.append(contentsOf: arguments[index...])
+                break
+            }
             switch arg {
             case "-h", "--help", "help":
                 printUsage()
@@ -266,7 +274,7 @@ enum MCPPanelCLI {
         mcp-panel \(version) — agent-first CLI for MCP Panel (Claude Code MCP servers)
 
         USAGE
-          mcp-panel <command> [options]
+          mcp-panel [options] <command> [args]    (options precede the command)
 
         COMMANDS
           list                      List all servers with status (JSON)
