@@ -23,6 +23,7 @@ enum MCPPanelCLI {
     private static func dispatch(_ arguments: [String]) throws -> Int32 {
         var configOverride: String?
         var defaultsOverride: String?
+        var factoryOverride: String?
         var positionals: [String] = []
 
         var index = 0
@@ -51,6 +52,10 @@ enum MCPPanelCLI {
                 index += 1
                 guard index < arguments.count else { throw CLIError.usage("--defaults requires a path") }
                 defaultsOverride = arguments[index]
+            case "--factory":
+                index += 1
+                guard index < arguments.count else { throw CLIError.usage("--factory requires a path") }
+                factoryOverride = arguments[index]
             default:
                 positionals.append(arg)
             }
@@ -62,7 +67,11 @@ enum MCPPanelCLI {
             return 0
         }
         let rest = Array(positionals.dropFirst())
-        let context = Context(configOverride: configOverride, defaultsOverride: defaultsOverride)
+        let context = Context(
+            configOverride: configOverride,
+            defaultsOverride: defaultsOverride,
+            factoryOverride: factoryOverride
+        )
 
         switch command {
         case "list", "ls":
@@ -83,10 +92,12 @@ enum MCPPanelCLI {
     struct Context {
         let configStore: ClaudeConfigStore
         let cacheStore: DefaultsCacheStore
+        let factoryStore: ClaudeConfigStore?
 
         var configPath: String { configStore.path }
+        var factoryConfigPath: String? { factoryStore?.path }
 
-        init(configOverride: String?, defaultsOverride: String?) {
+        init(configOverride: String?, defaultsOverride: String?, factoryOverride: String?) {
             let cache = DefaultsCacheStore(override: defaultsOverride)
             let resolvedPath: String
             if let configOverride, !configOverride.trimmedWhitespace.isEmpty {
@@ -98,13 +109,23 @@ enum MCPPanelCLI {
             }
             self.cacheStore = cache
             self.configStore = ClaudeConfigStore(path: resolvedPath)
+
+            // Factory ("Droid") path: explicit flag, then env var, then the app's
+            // configured droidConfigPath. Absent → Droid sync stays disabled,
+            // exactly as in the GUI.
+            let env = ProcessInfo.processInfo.environment["MCP_PANEL_FACTORY_CONFIG"]
+            let factoryPath = [factoryOverride, env, cache.readDroidConfigPath()]
+                .compactMap { $0 }
+                .map { $0.trimmedWhitespace }
+                .first { !$0.isEmpty }
+            self.factoryStore = factoryPath.map { ClaudeConfigStore(path: $0) }
         }
     }
 
     // MARK: - Commands
 
     private static func runList(context: Context) throws -> Int32 {
-        let registry = try ServerRegistry(configStore: context.configStore, cacheStore: context.cacheStore)
+        let registry = try ServerRegistry(configStore: context.configStore, cacheStore: context.cacheStore, factoryStore: context.factoryStore)
 
         var servers: [[String: Any]] = []
         for name in registry.sortedNames() {
@@ -121,7 +142,7 @@ enum MCPPanelCLI {
         }
 
         let enabledCount = servers.filter { ($0["enabled"] as? Bool) == true }.count
-        let payload: [String: Any] = [
+        var payload: [String: Any] = [
             "configPath": context.configPath,
             "cacheAvailable": context.cacheStore.isAvailable,
             "counts": [
@@ -131,6 +152,12 @@ enum MCPPanelCLI {
             ],
             "servers": servers
         ]
+        if let factoryPath = context.factoryConfigPath {
+            payload["factoryConfigPath"] = factoryPath
+            if let inSync = registry.factoryInSync() {
+                payload["factoryInSync"] = inSync
+            }
+        }
         printLine(try JSONUtil.prettyString(payload))
         return 0
     }
@@ -144,11 +171,11 @@ enum MCPPanelCLI {
         let config = try extractConfig(from: parsed, name: name)
         try validate(config)
 
-        var registry = try ServerRegistry(configStore: context.configStore, cacheStore: context.cacheStore)
+        var registry = try ServerRegistry(configStore: context.configStore, cacheStore: context.cacheStore, factoryStore: context.factoryStore)
         let existed = registry.entry(named: name) != nil
         let entry = try registry.add(name: name, config: config)
 
-        let payload: [String: Any] = [
+        var payload: [String: Any] = [
             "action": existed ? "updated" : "added",
             "name": name,
             "enabled": (entry["enabled"] as? Bool) ?? true,
@@ -157,6 +184,10 @@ enum MCPPanelCLI {
             "cacheUpdated": context.cacheStore.isWritable,
             "config": config
         ]
+        if let factoryPath = context.factoryConfigPath {
+            payload["factoryConfigPath"] = factoryPath
+            payload["factorySynced"] = true
+        }
         printLine(try JSONUtil.prettyString(payload))
         return 0
     }
@@ -175,7 +206,7 @@ enum MCPPanelCLI {
             }
         }
 
-        var registry = try ServerRegistry(configStore: context.configStore, cacheStore: context.cacheStore)
+        var registry = try ServerRegistry(configStore: context.configStore, cacheStore: context.cacheStore, factoryStore: context.factoryStore)
         let result = try registry.setEnabled(name: name, target: target)
         let enabled = (result.entry["enabled"] as? Bool) ?? false
 
@@ -191,6 +222,10 @@ enum MCPPanelCLI {
         // remembered for re-enabling — surface that instead of losing it silently.
         if !enabled && !context.cacheStore.isWritable {
             payload["warning"] = "MCP Panel's cache was not found; this server is removed from the active config and not remembered. Launch MCP Panel once to enable disabled-state tracking."
+        }
+        if let factoryPath = context.factoryConfigPath {
+            payload["factoryConfigPath"] = factoryPath
+            payload["factorySynced"] = result.changed
         }
         printLine(try JSONUtil.prettyString(payload))
         return 0
@@ -283,14 +318,17 @@ enum MCPPanelCLI {
 
         OPTIONS
           --config <path>           Config file (default: app setting, else ~/.claude.json)
+          --factory <path>          Factory/Droid config to mirror (default: app setting; e.g. ~/.factory/mcp.json)
           --defaults <path>         MCP Panel preferences plist (advanced)
           -h, --help                Show this help
           --version                 Print version
 
         NOTES
           Enabled servers live in ~/.claude.json (what Claude Code loads). Disabled servers
-          are remembered in MCP Panel's shared cache, matching the app's GUI. Output is JSON
-          on stdout; errors are JSON on stderr with a non-zero exit code.
+          are remembered in MCP Panel's shared cache, matching the app's GUI. When a Factory
+          (Droid) config is set — in the app or via --factory — the enabled set is mirrored
+          there too, normalized to match the GUI. Output is JSON on stdout; errors are JSON
+          on stderr with a non-zero exit code.
 
         EXAMPLES
           mcp-panel list

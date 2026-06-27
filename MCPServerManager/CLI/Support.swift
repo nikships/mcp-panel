@@ -164,3 +164,50 @@ enum ServerSummary {
         URL(string: urlString)?.host
     }
 }
+
+// MARK: - Droid / Factory normalization
+
+/// Normalizes a server config for the Factory ("Droid") config exactly as the
+/// app's `ConfigManager.normalizeForDroid` does: ensure an explicit `type`, map
+/// `httpUrl` to `url`, and flatten a `transport` block to `type`/`url`/`headers`.
+/// Original keys are preserved (fields are only added), matching the GUI output.
+enum DroidNormalizer {
+    static func normalize(_ config: [String: Any]) -> [String: Any] {
+        var result = config
+
+        if let command = config["command"] as? String, !command.trimmedWhitespace.isEmpty {
+            if isBlank(result["type"]) {
+                result["type"] = "stdio"
+            }
+            return result
+        }
+
+        if let httpURL = config["httpUrl"] as? String, !httpURL.trimmedWhitespace.isEmpty {
+            if isBlank(result["type"]) {
+                result["type"] = "http"
+            }
+            if isBlank(result["url"]) {
+                result["url"] = httpURL
+            }
+        }
+
+        if let transport = config["transport"] as? [String: Any] {
+            if isBlank(result["type"]), let type = transport["type"] as? String {
+                result["type"] = type
+            }
+            if isBlank(result["url"]), let url = transport["url"] as? String {
+                result["url"] = url
+            }
+            if result["headers"] == nil, let headers = transport["headers"] {
+                result["headers"] = headers
+            }
+        }
+
+        return result
+    }
+
+    private static func isBlank(_ value: Any?) -> Bool {
+        guard let string = value as? String else { return value == nil }
+        return string.trimmedWhitespace.isEmpty
+    }
+}

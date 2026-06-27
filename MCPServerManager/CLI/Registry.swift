@@ -8,15 +8,32 @@ import Foundation
 struct ServerRegistry {
     private let configStore: ClaudeConfigStore
     private let cacheStore: DefaultsCacheStore
+    /// Optional Factory ("Droid") config, mirrored with normalized enabled servers.
+    private let factoryStore: ClaudeConfigStore?
 
     /// name -> entry, where each entry uses the app's cached-server JSON shape.
     private(set) var entries: [String: [String: Any]]
 
-    init(configStore: ClaudeConfigStore, cacheStore: DefaultsCacheStore) throws {
+    init(configStore: ClaudeConfigStore,
+         cacheStore: DefaultsCacheStore,
+         factoryStore: ClaudeConfigStore? = nil) throws {
         self.configStore = configStore
         self.cacheStore = cacheStore
+        self.factoryStore = factoryStore
         self.entries = [:]
         try reload()
+    }
+
+    /// The configured Factory ("Droid") config path, if any.
+    var factoryConfigPath: String? { factoryStore?.path }
+
+    /// Whether the Factory config's server set matches the enabled set, or nil
+    /// when no Factory path is configured.
+    func factoryInSync() -> Bool? {
+        guard let factoryStore else { return nil }
+        let enabledNames = Set(entries.filter { ($0.value["enabled"] as? Bool) == true }.map { $0.key })
+        let factoryNames = Set(((try? factoryStore.readServers()) ?? [:]).keys)
+        return enabledNames == factoryNames
     }
 
     /// Rebuilds the unified view, mirroring `ServerViewModel.mergeConfig`:
@@ -104,8 +121,9 @@ struct ServerRegistry {
         return (entry, true)
     }
 
-    /// Persists to both stores, mirroring `ServerViewModel.syncToConfigs`:
-    /// the enabled subset goes to `~/.claude.json`, the full list to the cache.
+    /// Persists to every surface, mirroring `ServerViewModel.syncToConfigs`:
+    /// the enabled subset goes to `~/.claude.json` and (normalized) to the
+    /// Factory config when configured, while the full list goes to the cache.
     private func persist() throws {
         var enabled: [String: [String: Any]] = [:]
         for (name, entry) in entries where (entry["enabled"] as? Bool) == true {
@@ -122,5 +140,12 @@ struct ServerRegistry {
             try cacheStore.writeCachedServers(ordered)
         }
         try configStore.writeServers(enabled)
+
+        // Mirror the enabled set into the Factory ("Droid") config, normalized
+        // exactly as the GUI's `syncClaudeServersToDroid` does, when configured.
+        if let factoryStore {
+            let normalized = enabled.mapValues { DroidNormalizer.normalize($0) }
+            try factoryStore.writeServers(normalized)
+        }
     }
 }
