@@ -22,6 +22,16 @@ mkdir -p build/MCP-Server-Manager.app/Contents/Resources
 # Copy binary
 cp .build/release/MCPServerManager build/MCP-Server-Manager.app/Contents/MacOS/
 
+# Bundle the agent CLI (mcp-panel) so the app can install it onto the user's PATH.
+# The later `codesign --deep` covers this nested executable.
+if [ -f .build/release/mcp-panel ]; then
+    echo "🧰 Bundling mcp-panel CLI..."
+    cp .build/release/mcp-panel build/MCP-Server-Manager.app/Contents/MacOS/mcp-panel
+    chmod +x build/MCP-Server-Manager.app/Contents/MacOS/mcp-panel
+else
+    echo "⚠️ mcp-panel not found in .build/release; skipping CLI bundle"
+fi
+
 # Create Info.plist
 cat > build/MCP-Server-Manager.app/Contents/Info.plist << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>

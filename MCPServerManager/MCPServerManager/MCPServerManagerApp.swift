@@ -59,6 +59,16 @@ struct MCPServerManagerApp: App {
                 }
             }
 
+            // Offer to install the bundled `mcp-panel` CLI onto the PATH. Only
+            // direct-download (DMG) builds ship the binary, so hide it otherwise.
+            if CLIInstaller.isAvailable {
+                CommandGroup(after: .appInfo) {
+                    Button("Install Command-Line Tool...") {
+                        CLIInstaller.install()
+                    }
+                }
+            }
+
             // Window menu to reopen the main window (Apple Review requirement)
             CommandGroup(after: .windowArrangement) {
                 Button("MCP Panel") {

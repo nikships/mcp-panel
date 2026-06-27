@@ -139,6 +139,16 @@ jobs:
 
         echo "✅ Sparkle framework and Info.plist updated"
 
+    - name: Bundle mcp-panel CLI
+      working-directory: MCPServerManager
+      run: |
+        # Build the agent CLI and embed it in the app so the in-app
+        # "Install Command-Line Tool..." action can symlink it onto the PATH.
+        swift build -c release --product mcp-panel
+        cp .build/release/mcp-panel build/MCP-Server-Manager.app/Contents/MacOS/mcp-panel
+        chmod +x build/MCP-Server-Manager.app/Contents/MacOS/mcp-panel
+        echo "✅ Bundled mcp-panel CLI into app"
+
     - name: Sign app bundle
       working-directory: MCPServerManager
       env:
@@ -188,6 +198,13 @@ jobs:
           --options runtime \
           --timestamp \
           build/MCP-Server-Manager.app/Contents/Frameworks/Sparkle.framework
+
+        # Sign the bundled CLI (nested executables must be signed for notarization)
+        if [ -f "build/MCP-Server-Manager.app/Contents/MacOS/mcp-panel" ]; then
+          echo "Signing bundled mcp-panel CLI"
+          codesign --force --sign "$IDENTITY" --options runtime --timestamp \
+            build/MCP-Server-Manager.app/Contents/MacOS/mcp-panel
+        fi
 
         # Sign the main app bundle
         codesign --force --sign "$IDENTITY" \
