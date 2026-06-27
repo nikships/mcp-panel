@@ -114,11 +114,17 @@ Open via the gear icon. Tabs:
 
 ## Command-Line Interface
 
-MCP Panel ships with **`mcp-panel`**, an agent-first CLI for scripting the same configuration the app manages. It's a separate executable in the Swift package:
+MCP Panel ships with **`mcp-panel`**, an agent-first CLI for scripting the same configuration the app manages.
+
+### Install it from the app (DMG builds)
+
+The CLI is bundled inside the app. In the menu bar, choose **MCP Panel → Install Command-Line Tool…** — this symlinks `mcp-panel` into `~/.local/bin` (make sure that's on your `PATH`). Because it's a symlink into the app bundle, Sparkle updates keep the CLI current. (The Mac App Store build is sandboxed and doesn't include the CLI.)
+
+### Build it from source
 
 ```bash
 cd MCPServerManager
-swift build -c release
+swift build -c release --product mcp-panel
 .build/release/mcp-panel --help          # or copy it onto your PATH
 ```
 
