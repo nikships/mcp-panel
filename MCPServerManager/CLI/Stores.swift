@@ -173,12 +173,23 @@ struct DefaultsCacheStore {
 
     /// The config path the user selected inside the app, if any.
     func readConfigPath() -> String? {
+        appSetting("configPath")
+    }
+
+    /// The Factory ("Droid") config path the user configured in the app, if any.
+    /// The GUI mirrors enabled servers here (normalized) when it's set; empty
+    /// means Droid sync is disabled.
+    func readDroidConfigPath() -> String? {
+        appSetting("droidConfigPath")
+    }
+
+    private func appSetting(_ key: String) -> String? {
         guard let blob = readPlist()["app_settings"] as? Data,
               let settings = try? JSONSerialization.jsonObject(with: blob) as? [String: Any],
-              let path = settings["configPath"] as? String, !path.trimmedWhitespace.isEmpty else {
+              let value = settings[key] as? String, !value.trimmedWhitespace.isEmpty else {
             return nil
         }
-        return path
+        return value
     }
 
     func writeCachedServers(_ servers: [[String: Any]]) throws {

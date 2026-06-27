@@ -136,6 +136,8 @@ mcp-panel toggle <name> [on|off]     # Enable/disable a server (no arg flips sta
 
 Enabled servers are written to `~/.claude.json`; disabled servers are remembered in MCP Panel's shared cache, so the CLI and the app always agree. Output is JSON on stdout and errors are JSON on stderr with non-zero exit codes — designed for coding agents. A ready-to-use agent skill lives in [`skills/mcp-panel-cli/`](skills/mcp-panel-cli/SKILL.md). The CLI is not part of the sandboxed Mac App Store build.
 
+**Factory (Droid) sync.** If you've set a Factory config path in the app (Settings → **Droid**, e.g. `~/.factory/mcp.json`), the CLI mirrors the enabled set there too — normalized exactly as the GUI does (`syncClaudeServersToDroid`) — so `add`/`toggle` stay 1:1 with the app across both `~/.claude.json` and `~/.factory/mcp.json`. `list` reports `factoryConfigPath` and `factoryInSync`. Override the path with `--factory <path>` or `MCP_PANEL_FACTORY_CONFIG`; leave it unset to keep Droid sync disabled (matching the GUI).
+
 ## Configuration Format
 
 MCP Panel manages `~/.claude.json` files:

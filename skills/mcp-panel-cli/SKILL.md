@@ -87,6 +87,8 @@ In automation, prefer the explicit `on` / `off` form: it is idempotent and repor
 
 - `--config <path>` — operate on a specific config file (default: the app's configured
   path, otherwise `~/.claude.json`).
+- `--factory <path>` — Factory ("Droid") config to mirror (default: the app's `droidConfigPath`
+  setting, e.g. `~/.factory/mcp.json`). Also settable via `MCP_PANEL_FACTORY_CONFIG`.
 - `--defaults <path>` — point at MCP Panel's preferences plist (advanced / testing).
 - `-h`, `--help`, `--version`.
 
@@ -95,6 +97,10 @@ In automation, prefer the explicit `on` / `off` form: it is idempotent and repor
 - **Enabled vs. disabled:** enabled servers live in `~/.claude.json`; disabled servers are
   preserved in MCP Panel's shared cache (its UserDefaults) so they can be re-enabled later
   with their config intact. This matches the app's GUI exactly.
+- **Factory (Droid) sync:** if the app has a Factory config path set (`droidConfigPath`,
+  e.g. `~/.factory/mcp.json`), `add`/`toggle` also mirror the enabled set there, normalized
+  like the GUI (explicit `type`, `httpUrl`→`url`, flattened `transport`). `list` reports
+  `factoryConfigPath` and `factoryInSync`. Unset (or no `--factory`) means Droid sync is off.
 - **Restart to load:** Claude Code reads MCP servers at startup. After adding or enabling a
   server, restart Claude Code (or the relevant MCP client) for it to take effect.
 - **Live app:** if MCP Panel is open, it reconciles automatically via its file watcher;
