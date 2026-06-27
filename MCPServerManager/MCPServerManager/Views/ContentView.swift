@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 struct ContentView: View {
     @StateObject private var viewModel = ServerViewModel()
     @EnvironmentObject var appDelegate: AppDelegate
+    @Environment(\.scenePhase) private var scenePhase
     @State private var showSettings = false
     @State private var showAddServer = false
     @State private var showQuickActions = false
@@ -41,6 +42,14 @@ struct ContentView: View {
         .onChange(of: showAddServer) { isShowing in
             if !isShowing {
                 droppedJSON = nil
+            }
+        }
+        .onChange(of: scenePhase) { phase in
+            // The descriptor-based file watcher can miss an external atomic
+            // replace of the sandboxed config (e.g. a CLI write), so also reload
+            // when the app returns to the foreground. Honors the self-write guard.
+            if phase == .active {
+                viewModel.reloadOnActivation()
             }
         }
         .fileImporter(

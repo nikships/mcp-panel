@@ -775,3 +775,16 @@ extension ServerViewModel {
         Result { try configManager.testConnection(to: path) }
     }
 }
+
+// MARK: - External Reload
+
+extension ServerViewModel {
+    /// Reload from disk when the app returns to the foreground. Reuses the file
+    /// watcher's suppression guard (`ignoreExternalChangesUntil`) so the app's
+    /// own writes don't cause redundant reloads — a fallback because the
+    /// descriptor-based `ConfigFileWatcher` doesn't reliably fire after an
+    /// external atomic replace of the sandboxed config file (e.g. a CLI write).
+    func reloadOnActivation() {
+        handleExternalConfigChange()
+    }
+}
